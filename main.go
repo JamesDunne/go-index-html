@@ -10,6 +10,7 @@ import (
     "os"
     "path"
     "sort"
+    "strings"
 //    "time"
 )
 
@@ -80,19 +81,14 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
     ftpPath := removeIfStartsWith(p, proxyRoot)
     p = "/ftp" + ftpPath
 
-    // Check if the /home/ftp/* path exists:
+    // Check if the /home/ftp/* path is a symlink:
     localPath := "/home" + p
     fi, err := os.Lstat(localPath)
-    if (err != nil) {
-        http.Error(rsp, "Not found", http.StatusNotFound)
-        return
-    }
+    if (fi != nil && (fi.Mode() & os.ModeSymlink) != 0) {
+        log.Printf("%s : %s", localPath, fi.Mode().String())
+        localDir := path.Dir(localPath)
 
-    log.Printf("%s : %s", localPath, fi.Mode().String())
-    localDir := path.Dir(localPath)
-
-    // Check if file is a symlink and do 302 redirect:
-    if ((fi.Mode() & os.ModeSymlink) != 0) {
+        // Check if file is a symlink and do 302 redirect:
         linkDest, err := os.Readlink(localPath)
         if (err != nil) {
             http.Error(rsp, err.Error(), http.StatusBadRequest)
@@ -110,7 +106,18 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
 
         tp := translateForProxy(linkDest)
         http.Redirect(rsp, req, tp, http.StatusFound)
+        return
     }
+
+    // Regular stat
+    fi, err = os.Stat(localPath)
+    if (err != nil) {
+        http.Error(rsp, err.Error(), http.StatusNotFound)
+        return
+    }
+
+    log.Printf("%s : %s", localPath, fi.Mode().String())
+    localDir := path.Dir(localPath)
 
     // Serve the file if it is regular:
     if (fi.Mode().IsRegular()) {
@@ -130,15 +137,15 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
         if (sf != nil) {
             sortBy = sortByDateDesc
         }
-        sf, _ = os.Stat(path.Join(localPath, ".index-sort-date-asc"))
+        sf, _  = os.Stat(path.Join(localPath, ".index-sort-date-asc"))
         if (sf != nil) {
             sortBy = sortByDateAsc
         }
-        sf, _ = os.Stat(path.Join(localPath, ".index-sort-name-desc"))
+        sf, _  = os.Stat(path.Join(localPath, ".index-sort-name-desc"))
         if (sf != nil) {
             sortBy = sortByNameAscDesc
         }
-        sf, _ = os.Stat(path.Join(localPath, ".index-sort-name-asc"))
+        sf, _  = os.Stat(path.Join(localPath, ".index-sort-name-asc"))
         if (sf != nil) {
             sortBy = sortByNameAscAsc
         }
@@ -224,7 +231,7 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
             } else {
                 size := dfi.Size();
                 if (size < 1024) {
-                    sizeText = fmt.Sprintf("%d B", size)
+                    sizeText = fmt.Sprintf("%d  B", size)
                 } else if (size < 1024 * 1024) {
                     sizeText = fmt.Sprintf("%.02f KB", float64(size) / 1024.0)
                 } else if (size < 1024 * 1024 * 1024) {
@@ -244,7 +251,7 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
                 html.EscapeString(href),
                 html.EscapeString(name),
                 html.EscapeString(dfi.ModTime().Format("2006-01-02 15:04:05 -0700 MST")),
-                html.EscapeString(sizeText),
+                strings.Replace(html.EscapeString(sizeText), " ", "&nbsp;", -1),
                 html.EscapeString(mime.TypeByExtension(path.Ext(dfi.Name()))),
             )
         }
