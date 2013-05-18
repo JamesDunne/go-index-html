@@ -14,10 +14,14 @@ import (
 //    "time"
 )
 
-const proxyRoot = "/ftp2"
+const proxyRoot = "/ftp"
 
 // Remove the start of the string
 func removeIfStartsWith(s, start string) string {
+    if (len(s) < len(start)) {
+        return s
+    }
+
     if (s[0:len(start)] == start) {
         return s[len(start):]
     }
@@ -117,7 +121,6 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
     }
 
     log.Printf("%s : %s", localPath, fi.Mode().String())
-    localDir := path.Dir(localPath)
 
     // Serve the file if it is regular:
     if (fi.Mode().IsRegular()) {
@@ -129,6 +132,14 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
     // Generate an index.html for directories:
     if (fi.Mode().IsDir()) {
         // Build index.html
+
+        baseDir := path.Dir(localPath)
+        if (localPath[len(localPath)-1] == '/') {
+            baseDir = path.Dir(localPath[0:len(localPath)-1])
+        }
+        if (baseDir == "") {
+            baseDir = "/"
+        }
 
         // Determine what mode to sory by...
         sortBy := sortByNameAscAsc
@@ -150,12 +161,14 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
             sortBy = sortByNameAscAsc
         }
 
+        // Open the directory to read its contents:
         f, err := os.Open(localPath)
         if (err != nil) {
             http.Error(rsp, err.Error(), http.StatusInternalServerError)
             return
         }
 
+        // Read the directory entries:
         fis, err := f.Readdir(0)
         if (err != nil) {
             http.Error(rsp, err.Error(), http.StatusInternalServerError)
@@ -198,7 +211,7 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 <body>
   <h2>Index of %s</h2>`, pathHtml)
 
-        hrefParent := translateForProxy(localDir)
+        hrefParent := translateForProxy(baseDir) + "/"
         fmt.Fprintf(rsp, `
   <div class="list">
     <table cellpadding="0" cellspacing="0" summary="Directory Listing">
