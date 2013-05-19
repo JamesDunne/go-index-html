@@ -15,6 +15,7 @@ import (
 )
 
 const proxyRoot = "/ftp"
+const jailRoot = "/home/ftp"
 
 func startsWith(s, start string) bool {
     if (len(s) < len(start)) { return false }
@@ -28,7 +29,7 @@ func removeIfStartsWith(s, start string) string {
 }
 
 func translateForProxy(s string) string {
-    return proxyRoot + removeIfStartsWith(s, "/home/ftp")
+    return proxyRoot + removeIfStartsWith(s, jailRoot)
 }
 
 // For directory entry sorting:
@@ -109,12 +110,12 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
         log.Fatal(err)
     }
 
-    p := u.Path
-    ftpPath := removeIfStartsWith(p, proxyRoot)
-    p = "/ftp" + ftpPath
+    relPath := removeIfStartsWith(u.Path, proxyRoot)
+
+    localPath := path.Join(jailRoot, relPath)
+    pathLink := path.Join(proxyRoot, relPath)
 
     // Check if the /home/ftp/* path is a symlink:
-    localPath := "/home" + p
     fi, err := os.Lstat(localPath)
     if (fi != nil && (fi.Mode() & os.ModeSymlink) != 0) {
         log.Printf("%s : %s", localPath, fi.Mode().String())
@@ -226,7 +227,7 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
                 sort.Sort(ByDateAsc{fis})
         }
 
-        pathHtml := html.EscapeString(p)
+        pathHtml := html.EscapeString(pathLink)
         fmt.Fprintf(rsp, `<!DOCTYPE html>
 
 <html>
@@ -266,7 +267,7 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
       <tbody>`)
 
         // Add the Parent Directory link if we're above the jail root:
-        if (startsWith(baseDir, "/home/ftp")) {
+        if (startsWith(baseDir, jailRoot)) {
             hrefParent := translateForProxy(baseDir) + "/"
             fmt.Fprintf(rsp, `
         <tr>
