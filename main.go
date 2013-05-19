@@ -29,7 +29,7 @@ func removeIfStartsWith(s, start string) string {
 }
 
 func translateForProxy(s string) string {
-    return proxyRoot + removeIfStartsWith(s, jailRoot)
+    return path.Join(proxyRoot, removeIfStartsWith(s, jailRoot))
 }
 
 // For directory entry sorting:
