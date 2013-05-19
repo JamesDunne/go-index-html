@@ -1,6 +1,7 @@
 package main
 
 import (
+    "bufio"
     "fmt"
     "html"
     "mime"
@@ -21,7 +22,6 @@ func startsWith(s, start string) bool {
     return s[0:len(start)] == start;
 }
 
-// Remove the start of the string
 func removeIfStartsWith(s, start string) string {
     if (!startsWith(s, start)) { return s }
     return s[len(start):]
@@ -186,42 +186,25 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
         }
 
         // Determine what mode to sort by...
-        sortBy := sortByName
-        sortDir := sortAscending
+        sortString := ""
 
-        sf, _ := os.Stat(path.Join(localPath, ".index-sort-size-desc"))
-        if (sf != nil) {
-            sortBy = sortBySize
-            sortDir = sortDescending
-        }
-        sf, _  = os.Stat(path.Join(localPath, ".index-sort-size-asc"))
-        if (sf != nil) {
-            sortBy = sortBySize
-            sortDir = sortAscending
-        }
-        sf, _  = os.Stat(path.Join(localPath, ".index-sort-date-desc"))
-        if (sf != nil) {
-            sortBy = sortByDate
-            sortDir = sortDescending
-        }
-        sf, _  = os.Stat(path.Join(localPath, ".index-sort-date-asc"))
-        if (sf != nil) {
-            sortBy = sortByDate
-            sortDir = sortAscending
-        }
-        sf, _  = os.Stat(path.Join(localPath, ".index-sort-name-desc"))
-        if (sf != nil) {
-            sortBy = sortByName
-            sortDir = sortDescending
-        }
-        sf, _  = os.Stat(path.Join(localPath, ".index-sort-name-asc"))
-        if (sf != nil) {
-            sortBy = sortByName
-            sortDir = sortAscending
+        // Check the .index-sort file:
+        if sf, err := os.Open(path.Join(localPath, ".index-sort")); err == nil {
+            defer sf.Close()
+            scanner := bufio.NewScanner(sf)
+            if (scanner.Scan()) {
+                sortString = scanner.Text()
+            }
         }
 
         // Use query-string 'sort' to override sorting:
-        switch u.Query().Get("sort") {
+        sortStringQuery := u.Query().Get("sort")
+        if (sortStringQuery != "") { sortString = sortStringQuery }
+
+        // Determine the sorting mode:
+        sortBy := sortByName
+        sortDir := sortAscending
+        switch sortString {
             case "size-desc": sortBy = sortBySize; sortDir = sortDescending
             case "size-asc":  sortBy = sortBySize; sortDir = sortAscending
             case "date-desc": sortBy = sortByDate; sortDir = sortDescending
@@ -237,6 +220,7 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
             doError(req, rsp, err.Error(), http.StatusInternalServerError)
             return
         }
+        defer f.Close()
 
         // Read the directory entries:
         fis, err := f.Readdir(0)
