@@ -262,7 +262,7 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
           <th class="m">Last Modified</th>
           <th class="s">Size</th>
           <th class="t">Type</th>
-        <tr>
+        </tr>
       </thead>
       <tbody>`)
 
