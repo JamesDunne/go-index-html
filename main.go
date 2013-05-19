@@ -38,46 +38,23 @@ type Entries []os.FileInfo;
 func (s Entries) Len()             int { return len(s) }
 func (s Entries) Swap(i, j int)    { s[i], s[j] = s[j], s[i] }
 
-type sortBy int32
-
+type sortBy int
 const (
-    sortByNameAsc  sortBy = iota
-    sortByNameDesc
-    sortByDateAsc
-    sortByDateDesc
+    sortByName  sortBy = iota
+    sortByDate
+    sortBySize
 )
 
-// Sort by last modified time:
-type ByDateAsc struct{ Entries }
-
-func (s ByDateAsc) Less(i, j int) bool {
-    if (s.Entries[i].IsDir() && !s.Entries[j].IsDir()) {
-        return true;
-    }
-    if (!s.Entries[i].IsDir() && s.Entries[j].IsDir()) {
-        return false;
-    }
-
-    return s.Entries[i].ModTime().Before(s.Entries[j].ModTime())
-}
-
-type ByDateDesc struct{ Entries }
-
-func (s ByDateDesc) Less(i, j int) bool {
-    if (s.Entries[i].IsDir() && !s.Entries[j].IsDir()) {
-        return true;
-    }
-    if (!s.Entries[i].IsDir() && s.Entries[j].IsDir()) {
-        return false;
-    }
-
-    return s.Entries[i].ModTime().After(s.Entries[j].ModTime())
-}
+type sortDirection int
+const (
+    sortAscending  sortDirection = iota
+    sortDescending
+)
 
 // Sort by name:
-type ByNameAsc struct{ Entries }
+type ByName struct{ Entries; dir sortDirection }
 
-func (s ByNameAsc) Less(i, j int) bool {
+func (s ByName) Less(i, j int) bool {
     if (s.Entries[i].IsDir() && !s.Entries[j].IsDir()) {
         return true;
     }
@@ -85,12 +62,17 @@ func (s ByNameAsc) Less(i, j int) bool {
         return false;
     }
 
-    return s.Entries[i].Name() < s.Entries[j].Name()
+    if (s.dir == sortAscending) {
+        return s.Entries[i].Name() < s.Entries[j].Name()
+    } else {
+        return s.Entries[i].Name() > s.Entries[j].Name()
+    }
 }
 
-type ByNameDesc struct{ Entries }
+// Sort by last modified time:
+type ByDate struct{ Entries; dir sortDirection }
 
-func (s ByNameDesc) Less(i, j int) bool {
+func (s ByDate) Less(i, j int) bool {
     if (s.Entries[i].IsDir() && !s.Entries[j].IsDir()) {
         return true;
     }
@@ -98,17 +80,44 @@ func (s ByNameDesc) Less(i, j int) bool {
         return false;
     }
 
-    return s.Entries[i].Name() > s.Entries[j].Name()
+    if (s.dir == sortAscending) {
+        return s.Entries[i].ModTime().Before(s.Entries[j].ModTime())
+    } else {
+        return s.Entries[i].ModTime().After(s.Entries[j].ModTime())
+    }
 }
 
+// Sort by size:
+type BySize struct{ Entries; dir sortDirection }
+
+func (s BySize) Less(i, j int) bool {
+    if (s.Entries[i].IsDir() && !s.Entries[j].IsDir()) {
+        return true;
+    }
+    if (!s.Entries[i].IsDir() && s.Entries[j].IsDir()) {
+        return false;
+    }
+
+    if (s.dir == sortAscending) {
+        return s.Entries[i].Size() < s.Entries[j].Size()
+    } else {
+        return s.Entries[i].Size() > s.Entries[j].Size()
+    }
+}
+
+// Logging+action functions
 func doError(req *http.Request, rsp http.ResponseWriter, msg string, code int) {
     log.Printf(`"%s" %d "%s"`, req.RequestURI, code, msg)
     http.Error(rsp, msg, code)
 }
 
 func doRedirect(req *http.Request, rsp http.ResponseWriter, url string, code int) {
-    log.Printf(`"%s" %d "%d"`, req.RequestURI, code, url)
+    log.Printf(`"%s" %d "%s"`, req.RequestURI, code, url)
     http.Redirect(rsp, req, url, code)
+}
+
+func doOK(req *http.Request, msg string, code int) {
+    log.Printf(`"%s" %d "%s"`, req.RequestURI, code, msg)
 }
 
 // Serves an index.html file for a directory or sends the requested file.
@@ -177,31 +186,48 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
         }
 
         // Determine what mode to sort by...
-        sortBy := sortByNameAsc
+        sortBy := sortByName
+        sortDir := sortAscending
 
-        sf, _ := os.Stat(path.Join(localPath, ".index-sort-date-desc"))
+        sf, _ := os.Stat(path.Join(localPath, ".index-sort-size-desc"))
         if (sf != nil) {
-            sortBy = sortByDateDesc
+            sortBy = sortBySize
+            sortDir = sortDescending
+        }
+        sf, _  = os.Stat(path.Join(localPath, ".index-sort-size-asc"))
+        if (sf != nil) {
+            sortBy = sortBySize
+            sortDir = sortAscending
+        }
+        sf, _  = os.Stat(path.Join(localPath, ".index-sort-date-desc"))
+        if (sf != nil) {
+            sortBy = sortByDate
+            sortDir = sortDescending
         }
         sf, _  = os.Stat(path.Join(localPath, ".index-sort-date-asc"))
         if (sf != nil) {
-            sortBy = sortByDateAsc
+            sortBy = sortByDate
+            sortDir = sortAscending
         }
         sf, _  = os.Stat(path.Join(localPath, ".index-sort-name-desc"))
         if (sf != nil) {
-            sortBy = sortByNameDesc
+            sortBy = sortByName
+            sortDir = sortDescending
         }
         sf, _  = os.Stat(path.Join(localPath, ".index-sort-name-asc"))
         if (sf != nil) {
-            sortBy = sortByNameAsc
+            sortBy = sortByName
+            sortDir = sortAscending
         }
 
         // Use query-string 'sort' to override sorting:
         switch u.Query().Get("sort") {
-            case "date-desc": sortBy = sortByDateDesc
-            case "date-asc":  sortBy = sortByDateAsc
-            case "name-desc": sortBy = sortByNameDesc
-            case "name-asc":  sortBy = sortByNameAsc
+            case "size-desc": sortBy = sortBySize; sortDir = sortDescending
+            case "size-asc":  sortBy = sortBySize; sortDir = sortAscending
+            case "date-desc": sortBy = sortByDate; sortDir = sortDescending
+            case "date-asc":  sortBy = sortByDate; sortDir = sortAscending
+            case "name-desc": sortBy = sortByName; sortDir = sortDescending
+            case "name-asc":  sortBy = sortByName; sortDir = sortAscending
             default:
         }
 
@@ -222,15 +248,13 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
         // Sort the entries by the desired mode:
         switch sortBy {
             default:
-                sort.Sort(ByNameAsc{fis})
-            case sortByNameDesc:
-                sort.Sort(ByNameDesc{fis})
-            case sortByNameAsc:
-                sort.Sort(ByNameAsc{fis})
-            case sortByDateDesc:
-                sort.Sort(ByDateDesc{fis})
-            case sortByDateAsc:
-                sort.Sort(ByDateAsc{fis})
+                sort.Sort(ByName{fis, sortDir})
+            case sortByName:
+                sort.Sort(ByName{fis, sortDir})
+            case sortByDate:
+                sort.Sort(ByDate{fis, sortDir})
+            case sortBySize:
+                sort.Sort(BySize{fis, sortDir})
         }
 
         // TODO: check Accepts header to reply accordingly (i.e. add JSON support)
@@ -331,7 +355,7 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 </body>
 </html>`)
 
-        log.Printf(`"%s" %d "%s"`, req.RequestURI, http.StatusOK, localPath)
+        doOK(req, localPath, http.StatusOK)
         return
     }
 }
