@@ -179,7 +179,6 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
 	// Serve the file if it is regular:
 	if fi.Mode().IsRegular() {
 		// Send file:
-		log.Printf(`"%s" %d "%s"`, req.RequestURI, 200, localPath)
 		http.ServeFile(rsp, req, localPath)
 		return
 	}
