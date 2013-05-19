@@ -8,13 +8,14 @@ Features
 ---
 
  * Adds custom sort ability via two methods
-   * Create a dummy file named `.index-sort-date-desc` in the directory to sort
-   * Use `?sort=date-desc` query-string parameter
+   * Create a dummy file named `.index-sort-**sort-method**` in the directory to sort
+   * Supply `?sort=**sort-method**` query-string parameter in request (overrides dummy file)
+   * Folders are always sorted to display before files
    * Available sorting methods:
-     * name-asc
-     * name-desc
-     * date-asc
-     * date-desc
+     * `name-asc`  sorts by file name in ascending order (default)
+     * `name-desc` sorts by file name in descending order
+     * `date-asc`  sorts by last modified time in ascending order
+     * `date-desc` sorts by last modified time in descending order
  * 302 redirect support for relative symlinks
    * Requests for symlinks will 302 redirect to the target file (or folder) if that target is
      found within the filesystem root jail.
