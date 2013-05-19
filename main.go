@@ -16,16 +16,15 @@ import (
 
 const proxyRoot = "/ftp"
 
+func startsWith(s, start string) bool {
+    if (len(s) < len(start)) { return false }
+    return s[0:len(start)] == start;
+}
+
 // Remove the start of the string
 func removeIfStartsWith(s, start string) string {
-    if (len(s) < len(start)) {
-        return s
-    }
-
-    if (s[0:len(start)] == start) {
-        return s[len(start):]
-    }
-    return s
+    if (!startsWith(s, start)) { return s }
+    return s[len(start):]
 }
 
 func translateForProxy(s string) string {
@@ -42,18 +41,35 @@ func (s Entries) Swap(i, j int)    { s[i], s[j] = s[j], s[i] }
 type sortBy int32
 
 const (
-    sortByNameAscAsc  sortBy = iota
-    sortByNameAscDesc
+    sortByNameAsc  sortBy = iota
+    sortByNameDesc
     sortByDateAsc
     sortByDateDesc
 )
 
-// Sort by last modified time descending:
+// Sort by last modified time:
+type ByDateAsc struct{ Entries }
+
+func (s ByDateAsc) Less(i, j int) bool {
+    if (s.Entries[i].IsDir() && !s.Entries[j].IsDir()) {
+        return true;
+    }
+    if (!s.Entries[i].IsDir() && s.Entries[j].IsDir()) {
+        return false;
+    }
+
+    return s.Entries[i].ModTime().Before(s.Entries[j].ModTime())
+}
+
 type ByDateDesc struct{ Entries }
 
 func (s ByDateDesc) Less(i, j int) bool {
-    if (s.Entries[i].IsDir()) { return true }
-    if (s.Entries[j].IsDir()) { return false }
+    if (s.Entries[i].IsDir() && !s.Entries[j].IsDir()) {
+        return true;
+    }
+    if (!s.Entries[i].IsDir() && s.Entries[j].IsDir()) {
+        return false;
+    }
 
     return s.Entries[i].ModTime().After(s.Entries[j].ModTime())
 }
@@ -62,15 +78,27 @@ func (s ByDateDesc) Less(i, j int) bool {
 type ByNameAsc struct{ Entries }
 
 func (s ByNameAsc) Less(i, j int) bool {
-    if (s.Entries[i].IsDir()) {
-        if (s.Entries[j].IsDir()) {
-            return s.Entries[i].Name() < s.Entries[j].Name()
-        }
-        return true
+    if (s.Entries[i].IsDir() && !s.Entries[j].IsDir()) {
+        return true;
     }
-    if (s.Entries[j].IsDir()) { return false }
+    if (!s.Entries[i].IsDir() && s.Entries[j].IsDir()) {
+        return false;
+    }
 
     return s.Entries[i].Name() < s.Entries[j].Name()
+}
+
+type ByNameDesc struct{ Entries }
+
+func (s ByNameDesc) Less(i, j int) bool {
+    if (s.Entries[i].IsDir() && !s.Entries[j].IsDir()) {
+        return true;
+    }
+    if (!s.Entries[i].IsDir() && s.Entries[j].IsDir()) {
+        return false;
+    }
+
+    return s.Entries[i].Name() > s.Entries[j].Name()
 }
 
 // Serves an index.html file for a directory or sends the requested file.
@@ -141,8 +169,8 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
             baseDir = "/"
         }
 
-        // Determine what mode to sory by...
-        sortBy := sortByNameAscAsc
+        // Determine what mode to sort by...
+        sortBy := sortByNameAsc
 
         sf, _ := os.Stat(path.Join(localPath, ".index-sort-date-desc"))
         if (sf != nil) {
@@ -154,11 +182,20 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
         }
         sf, _  = os.Stat(path.Join(localPath, ".index-sort-name-desc"))
         if (sf != nil) {
-            sortBy = sortByNameAscDesc
+            sortBy = sortByNameDesc
         }
         sf, _  = os.Stat(path.Join(localPath, ".index-sort-name-asc"))
         if (sf != nil) {
-            sortBy = sortByNameAscAsc
+            sortBy = sortByNameAsc
+        }
+
+        // Use query-string 'sort' to override sorting:
+        switch u.Query().Get("sort") {
+            case "date-desc": sortBy = sortByDateDesc
+            case "date-asc":  sortBy = sortByDateAsc
+            case "name-desc": sortBy = sortByNameDesc
+            case "name-asc":  sortBy = sortByNameAsc
+            default:
         }
 
         // Open the directory to read its contents:
@@ -179,10 +216,14 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
         switch sortBy {
             default:
                 sort.Sort(ByNameAsc{fis})
-            case sortByNameAscAsc:
+            case sortByNameDesc:
+                sort.Sort(ByNameDesc{fis})
+            case sortByNameAsc:
                 sort.Sort(ByNameAsc{fis})
             case sortByDateDesc:
                 sort.Sort(ByDateDesc{fis})
+            case sortByDateAsc:
+                sort.Sort(ByDateAsc{fis})
         }
 
         pathHtml := html.EscapeString(p)
@@ -211,7 +252,6 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 <body>
   <h2>Index of %s</h2>`, pathHtml)
 
-        hrefParent := translateForProxy(baseDir) + "/"
         fmt.Fprintf(rsp, `
   <div class="list">
     <table cellpadding="0" cellspacing="0" summary="Directory Listing">
@@ -223,13 +263,19 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
           <th class="t">Type</th>
         <tr>
       </thead>
-      <tbody>
+      <tbody>`)
+
+        // Add the Parent Directory link if we're above the jail root:
+        if (startsWith(baseDir, "/home/ftp")) {
+            hrefParent := translateForProxy(baseDir) + "/"
+            fmt.Fprintf(rsp, `
         <tr>
           <td class="n"><a href="%s">Parent Directory/</a></td>
           <td class="m"></td>
           <td class="s"></td>
           <td class="t">Directory</td>
         </tr>`, hrefParent)
+        }
 
         for _, dfi := range fis {
             name := dfi.Name()
