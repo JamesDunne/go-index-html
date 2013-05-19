@@ -12,8 +12,6 @@ import (
 	"path"
 	"sort"
 	"strings"
-
-//    "time"
 )
 
 var proxyRoot, jailRoot string
@@ -123,17 +121,14 @@ func (s BySize) Less(i, j int) bool {
 
 // Logging+action functions
 func doError(req *http.Request, rsp http.ResponseWriter, msg string, code int) {
-	log.Printf(`"%s" %d "%s"`, req.RequestURI, code, msg)
 	http.Error(rsp, msg, code)
 }
 
 func doRedirect(req *http.Request, rsp http.ResponseWriter, url string, code int) {
-	log.Printf(`"%s" %d "%s"`, req.RequestURI, code, url)
 	http.Redirect(rsp, req, url, code)
 }
 
 func doOK(req *http.Request, msg string, code int) {
-	log.Printf(`"%s" %d "%s"`, req.RequestURI, code, msg)
 }
 
 // Serves an index.html file for a directory or sends the requested file.
