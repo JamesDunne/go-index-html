@@ -20,6 +20,6 @@ Arguments
 
   `./index-html <web root> <filesystem root> <listen address>`
 
-Starts a Go HTTP server listening at `<listen address`> expecting HTTP proxy requests for paths
+Starts a Go HTTP server listening at `<listen address>` expecting HTTP proxy requests for paths
 starting with `<web root>`, serving requests for directory listings and/or file downloads for
 filesystem objects found under `<filesystem root>`.
