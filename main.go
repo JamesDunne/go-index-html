@@ -14,8 +14,7 @@ import (
 //    "time"
 )
 
-const proxyRoot = "/ftp"
-const jailRoot = "/home/ftp"
+var proxyRoot, jailRoot string
 
 func startsWith(s, start string) bool {
     if (len(s) < len(start)) { return false }
@@ -102,6 +101,16 @@ func (s ByNameDesc) Less(i, j int) bool {
     return s.Entries[i].Name() > s.Entries[j].Name()
 }
 
+func doError(req *http.Request, rsp http.ResponseWriter, msg string, code int) {
+    log.Printf(`"%s" %d "%s"`, req.RequestURI, code, msg)
+    http.Error(rsp, msg, code)
+}
+
+func doRedirect(req *http.Request, rsp http.ResponseWriter, url string, code int) {
+    log.Printf(`"%s" %d "%d"`, req.RequestURI, code, url)
+    http.Redirect(rsp, req, url, code)
+}
+
 // Serves an index.html file for a directory or sends the requested file.
 func indexHtml(rsp http.ResponseWriter, req *http.Request) {
     // lighttpd proxy sends us absolute path URLs
@@ -118,42 +127,39 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
     // Check if the /home/ftp/* path is a symlink:
     fi, err := os.Lstat(localPath)
     if (fi != nil && (fi.Mode() & os.ModeSymlink) != 0) {
-        log.Printf("%s : %s", localPath, fi.Mode().String())
         localDir := path.Dir(localPath)
 
         // Check if file is a symlink and do 302 redirect:
         linkDest, err := os.Readlink(localPath)
         if (err != nil) {
-            http.Error(rsp, err.Error(), http.StatusBadRequest)
+            doError(req, rsp, err.Error(), http.StatusBadRequest)
             return
         }
 
         // NOTE(jsd): Problem here for links outside the /home/ftp/ folder.
         if (path.IsAbs(linkDest)) {
-            http.Error(rsp, "Symlink points outside of jail", http.StatusBadRequest)
+            doError(req, rsp, "Symlink points outside of jail", http.StatusBadRequest)
             return
         }
 
         linkDest = path.Join(localDir, linkDest)
-        log.Printf("  symlink : %s", linkDest)
-
         tp := translateForProxy(linkDest)
-        http.Redirect(rsp, req, tp, http.StatusFound)
+
+        doRedirect(req, rsp, tp, http.StatusFound)
         return
     }
 
     // Regular stat
     fi, err = os.Stat(localPath)
     if (err != nil) {
-        http.Error(rsp, err.Error(), http.StatusNotFound)
+        doError(req, rsp, err.Error(), http.StatusNotFound)
         return
     }
-
-    log.Printf("%s : %s", localPath, fi.Mode().String())
 
     // Serve the file if it is regular:
     if (fi.Mode().IsRegular()) {
         // Send file:
+        log.Printf(`"%s" %d "%s"`, req.RequestURI, 200, localPath)
         http.ServeFile(rsp, req, localPath)
         return
     }
@@ -202,14 +208,14 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
         // Open the directory to read its contents:
         f, err := os.Open(localPath)
         if (err != nil) {
-            http.Error(rsp, err.Error(), http.StatusInternalServerError)
+            doError(req, rsp, err.Error(), http.StatusInternalServerError)
             return
         }
 
         // Read the directory entries:
         fis, err := f.Readdir(0)
         if (err != nil) {
-            http.Error(rsp, err.Error(), http.StatusInternalServerError)
+            doError(req, rsp, err.Error(), http.StatusInternalServerError)
             return
         }
 
@@ -226,6 +232,8 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
             case sortByDateAsc:
                 sort.Sort(ByDateAsc{fis})
         }
+
+        // TODO: check Accepts header to reply accordingly (i.e. add JSON support)
 
         pathHtml := html.EscapeString(pathLink)
         fmt.Fprintf(rsp, `<!DOCTYPE html>
@@ -322,13 +330,27 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
   </div>
 </body>
 </html>`)
+
+        log.Printf(`"%s" %d "%s"`, req.RequestURI, http.StatusOK, localPath)
         return
     }
 }
 
 func main() {
+    // Expect commandline arguments to specify:
+    //   <web root>        : absolute path prefix on URLs
+    //   <filesystem root> : local fs absolute path to serve files/folders from
+    //   <listen address>  : network address to listen on
+    args := os.Args[1:]
+    if (len(args) != 3) {
+        log.Fatal("Required <web root> <filesystem root> <listen address> arguments")
+        return
+    }
+    proxyRoot, jailRoot = args[0], args[1]
+
+    // Create the HTTP server:
     s := &http.Server{
-        Addr:    "localhost:8212",
+        Addr:    args[2],
         Handler: http.HandlerFunc(indexHtml),
     }
     log.Fatal(s.ListenAndServe())
