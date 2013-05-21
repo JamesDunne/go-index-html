@@ -327,7 +327,7 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 
 			dfiPath := path.Join(localPath, name)
 			// Check symlink:
-			if (dfi.Mode()&os.ModeSymlink) != 0 {
+			if (dfi.Mode() & os.ModeSymlink) != 0 {
 				if targetPath, err := os.Readlink(dfiPath); err == nil {
 					// Find the absolute path of the symlink's target:
 					if !path.IsAbs(targetPath) {
