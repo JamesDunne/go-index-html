@@ -144,7 +144,7 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
 	localPath := path.Join(jailRoot, relPath)
 	pathLink := path.Join(proxyRoot, relPath)
 
-	// Check if the /home/ftp/* path is a symlink:
+	// Check if the requested path is a symlink:
 	fi, err := os.Lstat(localPath)
 	if fi != nil && (fi.Mode()&os.ModeSymlink) != 0 {
 		localDir := path.Dir(localPath)
@@ -156,8 +156,8 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		// NOTE(jsd): Problem here for links outside the /home/ftp/ folder.
-		if path.IsAbs(linkDest) {
+		// NOTE(jsd): Problem here for links outside the jail folder.
+		if path.IsAbs(linkDest) && !startsWith(linkDest, jailRoot) {
 			doError(req, rsp, "Symlink points outside of jail", http.StatusBadRequest)
 			return
 		}
@@ -180,6 +180,7 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
 	if fi.Mode().IsRegular() {
 		// Send file:
 		http.ServeFile(rsp, req, localPath)
+		// TODO(jsd): Alternatively use nginx/lighttpd's X-Accel-Redirect/X-SendFile header here.
 		return
 	}
 
@@ -320,11 +321,26 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 
 		for _, dfi := range fis {
 			name := dfi.Name()
-			if name[0:1] == "." {
+			if name[0] == '.' {
 				continue
 			}
 
-			href := translateForProxy(path.Join(localPath, name))
+			dfiPath := path.Join(localPath, name)
+			// Check symlink:
+			if (dfi.Mode()&os.ModeSymlink) != 0 {
+				if targetPath, err := os.Readlink(dfiPath); err == nil {
+					// Find the absolute path of the symlink's target:
+					if !path.IsAbs(targetPath) {
+						targetPath = path.Join(localPath, targetPath)
+					}
+					if tdfi, err := os.Stat(targetPath); err == nil {
+						// Change to the target so we get its properties instead of the symlink's:
+						dfi = tdfi
+					}
+				}
+			}
+
+			href := translateForProxy(dfiPath)
 
 			sizeText := ""
 			if dfi.IsDir() {
