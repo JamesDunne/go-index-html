@@ -218,27 +218,20 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
 		}
 
 		// Determine the sorting mode:
-		sortBy := sortByName
-		sortDir := sortAscending
+		sortBy, sortDir := sortByName, sortAscending
 		switch sortString {
 		case "size-desc":
-			sortBy = sortBySize
-			sortDir = sortDescending
+			sortBy, sortDir = sortBySize, sortDescending
 		case "size-asc":
-			sortBy = sortBySize
-			sortDir = sortAscending
+			sortBy, sortDir = sortBySize, sortAscending
 		case "date-desc":
-			sortBy = sortByDate
-			sortDir = sortDescending
+			sortBy, sortDir = sortByDate, sortDescending
 		case "date-asc":
-			sortBy = sortByDate
-			sortDir = sortAscending
+			sortBy, sortDir = sortByDate, sortAscending
 		case "name-desc":
-			sortBy = sortByName
-			sortDir = sortDescending
+			sortBy, sortDir = sortByName, sortDescending
 		case "name-asc":
-			sortBy = sortByName
-			sortDir = sortAscending
+			sortBy, sortDir = sortByName, sortAscending
 		default:
 		}
 
@@ -418,9 +411,9 @@ func main() {
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, os.Interrupt, os.Kill, syscall.SIGTERM)
 	go func(c chan os.Signal) {
-		// Wait for a SIGINT or SIGKILL:
+		// Wait for a signal:
 		sig := <-c
-		log.Printf("Caught signal %s: shutting down.", sig)
+		log.Printf("Caught signal '%s': shutting down.", sig)
 		// Stop listening:
 		l.Close()
 		// Delete the unix socket, if applicable:
