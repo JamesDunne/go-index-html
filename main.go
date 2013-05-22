@@ -6,12 +6,15 @@ import (
 	"html"
 	"log"
 	"mime"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path"
 	"sort"
 	"strings"
+	"syscall"
 )
 
 var proxyRoot, jailRoot string
@@ -388,20 +391,46 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 
 func main() {
 	// Expect commandline arguments to specify:
-	//   <web root>        : absolute path prefix on URLs
-	//   <filesystem root> : local fs absolute path to serve files/folders from
-	//   <listen address>  : network address to listen on
+	//   <listen socket type> : "unix" or "tcp" type of socket to listen on
+	//   <listen address>     : network address to listen on if "tcp" or path to socket if "unix"
+	//   <web root>           : absolute path prefix on URLs
+	//   <filesystem root>    : local fs absolute path to serve files/folders from
 	args := os.Args[1:]
-	if len(args) != 3 {
-		log.Fatal("Required <web root> <filesystem root> <listen address> arguments")
+	if len(args) != 4 {
+		log.Fatal("Required <listen socket type> <listen address> <web root> <filesystem root> arguments")
 		return
 	}
-	proxyRoot, jailRoot = args[0], args[1]
 
-	// Create the HTTP server:
-	s := &http.Server{
-		Addr:    args[2],
-		Handler: http.HandlerFunc(indexHtml),
+	// TODO(jsd): Make this pair of arguments a little more elegant, like "unix:/path/to/socket" or "tcp://:8080"
+	socketType, socketAddr := args[0], args[1]
+	proxyRoot, jailRoot = args[2], args[3]
+
+	// Create the socket to listen on:
+	l, err := net.Listen(socketType, socketAddr)
+	if err != nil {
+		log.Fatal(err)
+		return
 	}
-	log.Fatal(s.ListenAndServe())
+
+	// NOTE(jsd): Unix sockets must be unlink()ed before being reused again.
+
+	// Handle common process-killing signals so we can gracefully shut down:
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, os.Interrupt, os.Kill, syscall.SIGTERM)
+	go func(c chan os.Signal) {
+		// Wait for a SIGINT or SIGKILL:
+		sig := <-c
+		log.Printf("Caught signal %s: shutting down.", sig)
+		// Stop listening:
+		l.Close()
+		// Delete the unix socket, if applicable:
+		if socketType == "unix" {
+			os.Remove(socketAddr)
+		}
+		// And we're done:
+		os.Exit(0)
+	}(sigc)
+
+	// Start the HTTP server:
+	log.Fatal(http.Serve(l, http.HandlerFunc(indexHtml)))
 }
