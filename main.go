@@ -17,7 +17,7 @@ import (
 	"syscall"
 )
 
-var proxyRoot, jailRoot string
+var proxyRoot, jailRoot, accelRedirect string
 
 func startsWith(s, start string) bool {
 	if len(s) < len(start) {
@@ -182,8 +182,14 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
 	// Serve the file if it is regular:
 	if fi.Mode().IsRegular() {
 		// Send file:
-		http.ServeFile(rsp, req, localPath)
-		// TODO(jsd): Alternatively use nginx/lighttpd's X-Accel-Redirect/X-SendFile header here.
+
+		// NOTE(jsd): using `http.ServeFile` does not appear to handle range requests well. Lots of broken pipe errors
+		// that lead to a poor client experience. X-Accel-Redirect back to nginx is much better.
+
+		redirPath := path.Join(accelRedirect, relPath)
+		rsp.Header().Add("X-Accel-Redirect", redirPath)
+		rsp.WriteHeader(200)
+
 		return
 	}
 
@@ -387,16 +393,17 @@ func main() {
 	//   <listen socket type> : "unix" or "tcp" type of socket to listen on
 	//   <listen address>     : network address to listen on if "tcp" or path to socket if "unix"
 	//   <web root>           : absolute path prefix on URLs
+	//   <accel redirect>     : nginx location prefix to internally redirect static file requests to
 	//   <filesystem root>    : local fs absolute path to serve files/folders from
 	args := os.Args[1:]
-	if len(args) != 4 {
-		log.Fatal("Required <listen socket type> <listen address> <web root> <filesystem root> arguments")
+	if len(args) != 5 {
+		log.Fatal("Required <listen socket type> <listen address> <web root> <accel redirect> <filesystem root> arguments")
 		return
 	}
 
 	// TODO(jsd): Make this pair of arguments a little more elegant, like "unix:/path/to/socket" or "tcp://:8080"
 	socketType, socketAddr := args[0], args[1]
-	proxyRoot, jailRoot = args[2], args[3]
+	proxyRoot, accelRedirect, jailRoot = args[2], args[3], args[4]
 
 	// Create the socket to listen on:
 	l, err := net.Listen(socketType, socketAddr)
