@@ -272,6 +272,8 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
 		// TODO: check Accepts header to reply accordingly (i.e. add JSON support)
 
 		pathHtml := html.EscapeString(pathLink)
+
+		rsp.Header().Add("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprintf(rsp, `<!DOCTYPE html>
 
 <html>
