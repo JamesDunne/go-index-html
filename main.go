@@ -188,6 +188,7 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
 
 		redirPath := path.Join(accelRedirect, relPath)
 		rsp.Header().Add("X-Accel-Redirect", redirPath)
+		rsp.Header().Add("Content-Type", mime.TypeByExtension(path.Ext(localPath)))
 		rsp.WriteHeader(200)
 
 		return
