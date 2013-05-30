@@ -22,27 +22,14 @@ Features
 Arguments
 ---
 
-  `./index-html <web root> <filesystem root> <listen address>`
+  `./index-html <listen socket type> <listen address> <web root> <accel redirect> <filesystem root>`
 
-Starts a Go HTTP server listening at `<listen address>` expecting HTTP proxy requests for paths
-starting with `<web root>`, serving requests for directory listings and/or file downloads for
-filesystem objects found under `<filesystem root>`.
+Starts a Go HTTP server listening on a socket of type `<listen socket type` at `<listen address>` expecting
+HTTP requests for paths starting with `<web root>`, serving requests for directory listings and/or file
+downloads for filesystem objects found under `<filesystem root>`. `<accel redirect>` is used to provide the
+`X-Accel-Redirect` header with the root path for nginx to pick up on.
 
 chroot is not used to provide the filesystem root jail due to cross-platform compatibility concerns.
-
-Example
----
-
-  `./index-html /ftp /home/ftp localhost:8080`
-
-This example starts the web server listening on localhost on port 8080 to serve URL requests under
-`/ftp` as files and folders from the filesystem path `/home/ftp`.
-
-Logging
----
-
-Only rudimentary request logging is supported and is written to stderr. More detailed logging is
-coming soon using a W3C log format.
 
 Upstart
 ---
