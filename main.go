@@ -322,7 +322,7 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 
 		// Add the Parent Directory link if we're above the jail root:
 		if startsWith(baseDir, jailRoot) {
-			hrefParent := translateForProxy(baseDir) + "/"
+			hrefParent := translateForProxy(baseDir)
 			fmt.Fprintf(rsp, `
         <tr>
           <td class="n"><a href="%s">Parent Directory/</a></td>
