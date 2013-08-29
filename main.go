@@ -224,6 +224,11 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
 			sortString = sortStringQuery
 		}
 
+		// default Sort mode for headers
+		nameSort = "name-asc"
+		dateSort = "date-asc"
+		sizeSort = "size-asc"
+
 		// Determine the sorting mode:
 		sortBy, sortDir := sortByName, sortAscending
 		switch sortString {
@@ -231,14 +236,17 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
 			sortBy, sortDir = sortBySize, sortDescending
 		case "size-asc":
 			sortBy, sortDir = sortBySize, sortAscending
+			sizeSort = "size-desc"
 		case "date-desc":
 			sortBy, sortDir = sortByDate, sortDescending
 		case "date-asc":
 			sortBy, sortDir = sortByDate, sortAscending
+			dateSort = "date-desc"
 		case "name-desc":
 			sortBy, sortDir = sortByName, sortDescending
 		case "name-asc":
 			sortBy, sortDir = sortByName, sortAscending
+			nameSort = "name-desc"
 		default:
 		}
 
@@ -304,13 +312,13 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
     <table cellpadding="0" cellspacing="0" summary="Directory Listing">
       <thead>
         <tr>
-          <th class="n">Name</th>
-          <th class="m">Last Modified</th>
-          <th class="s">Size</th>
+          <th class="n"><a href="%s?sort=%s">Name</a></th>
+          <th class="m"><a href="%s?sort=%s">Last Modified</a></th>
+          <th class="s"><a href="%s?sort=%s">Size</a></th>
           <th class="t">Type</th>
         </tr>
       </thead>
-      <tbody>`)
+      <tbody>`, pathHtml,nameSort, pathHtml,dateSort, pathHtml,sizeSort )
 
 		// Add the Parent Directory link if we're above the jail root:
 		if startsWith(baseDir, jailRoot) {
