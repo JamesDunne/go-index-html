@@ -225,9 +225,9 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
 		}
 
 		// default Sort mode for headers
-		nameSort = "name-asc"
-		dateSort = "date-asc"
-		sizeSort = "size-asc"
+		nameSort := "name-asc"
+		dateSort := "date-asc"
+		sizeSort := "size-asc"
 
 		// Determine the sorting mode:
 		sortBy, sortDir := sortByName, sortAscending
@@ -236,17 +236,17 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
 			sortBy, sortDir = sortBySize, sortDescending
 		case "size-asc":
 			sortBy, sortDir = sortBySize, sortAscending
-			sizeSort = "size-desc"
+			sizeSort := "size-desc"
 		case "date-desc":
 			sortBy, sortDir = sortByDate, sortDescending
 		case "date-asc":
 			sortBy, sortDir = sortByDate, sortAscending
-			dateSort = "date-desc"
+			dateSort := "date-desc"
 		case "name-desc":
 			sortBy, sortDir = sortByName, sortDescending
 		case "name-asc":
 			sortBy, sortDir = sortByName, sortAscending
-			nameSort = "name-desc"
+			nameSort := "name-desc"
 		default:
 		}
 
