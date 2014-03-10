@@ -301,17 +301,82 @@ td.s, th.s {text-align: right;}
 div.list { background-color: white; border-top: 1px solid #646464; border-bottom: 1px solid #646464; padding-top: 10px; padding-bottom: 14px;}
 div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
   </style>
+
+  <link href="/js/jplayer.blue.monday.css" rel="stylesheet" type="text/css" />
+  <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.0.min.js"></script>
+  <script type="text/javascript" src="/js/jquery.jplayer.min.js"></script>
+  <script type="text/javascript">
+    $(function() {
+      $("#jplayer").jPlayer({
+        swfPath: "/js",
+		supplied: "mp3",
+		wmode: "window"
+      });
+
+	  $("a.play").click(function(e) {
+	     e.preventDefault();
+		 $("#jplayer").jPlayer("setMedia", { mp3: $(this).attr("href") });
+		 $("#jplayer").jPlayer("play");
+		 return false;
+	  });
+	});
+  </script>
 </head>`, pathHtml)
 
 		fmt.Fprintf(rsp, `
 <body>
   <h2>Index of %s</h2>`, pathHtml)
 
+  		fmt.Fprintf(rsp, `
+  <div id="jplayer" class="jp-jplayer"></div>
+
+  <div id="jp_container_1" class="jp-audio">
+       <div class="jp-type-single">
+           <div class="jp-gui jp-interface">
+                    <ul class="jp-controls">
+                        <li><a href="javascript:;" class="jp-play" tabindex="1">play</a></li>
+                        <li><a href="javascript:;" class="jp-pause" tabindex="1">pause</a></li>
+                        <li><a href="javascript:;" class="jp-stop" tabindex="1">stop</a></li>
+                        <li><a href="javascript:;" class="jp-mute" tabindex="1" title="mute">mute</a></li>
+                        <li><a href="javascript:;" class="jp-unmute" tabindex="1" title="unmute">unmute</a></li>
+                        <li><a href="javascript:;" class="jp-volume-max" tabindex="1" title="max volume">max volume</a></li>
+                    </ul>
+                    <div class="jp-progress">
+                        <div class="jp-seek-bar">
+                            <div class="jp-play-bar"></div>
+                        </div>
+                    </div>
+                    <div class="jp-volume-bar">
+                        <div class="jp-volume-bar-value"></div>
+                    </div>
+                    <div class="jp-time-holder">
+                        <div class="jp-current-time"></div>
+                        <div class="jp-duration"></div>
+
+                        <ul class="jp-toggles">
+                            <li><a href="javascript:;" class="jp-repeat" tabindex="1" title="repeat">repeat</a></li>
+                            <li><a href="javascript:;" class="jp-repeat-off" tabindex="1" title="repeat off">repeat off</a></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="jp-title">
+                    <ul>
+                        <li></li>
+                    </ul>
+                </div>
+                <div class="jp-no-solution">
+                    <span>Update Required</span>
+                    To play the media you will need to either update your browser to a recent version or update your <a href="http://get.adobe.com/flashplayer/" target="_blank">Flash plugin</a>.
+                </div>
+            </div>
+        </div>
+`)
 		fmt.Fprintf(rsp, `
   <div class="list">
     <table cellpadding="0" cellspacing="0" summary="Directory Listing">
       <thead>
         <tr>
+		  <th class="p"></th>
           <th class="n"><a href="%s?sort=%s">Name</a></th>
           <th class="m"><a href="%s?sort=%s">Last Modified</a></th>
           <th class="s"><a href="%s?sort=%s">Size</a></th>
@@ -322,10 +387,11 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 
 		// Add the Parent Directory link if we're above the jail root:
 		if startsWith(baseDir, jailRoot) {
-			hrefParent := translateForProxy(baseDir)
+			hrefParent := translateForProxy(baseDir) + "/"
 			fmt.Fprintf(rsp, `
         <tr>
-          <td class="n"><a href="%s">Parent Directory/</a></td>
+		  <td class="p"></td>
+          <td class="n"><a href="%s">../</a></td>
           <td class="m"></td>
           <td class="s"></td>
           <td class="t">Directory</td>
@@ -359,6 +425,7 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 			if dfi.IsDir() {
 				sizeText = "-"
 				name += "/"
+				href += "/"
 			} else {
 				size := dfi.Size()
 				if size < 1024 {
@@ -373,7 +440,21 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 			}
 
 			fmt.Fprintf(rsp, `
-        <tr>
+        <tr>`)
+
+		    // Add a "play" link if mime type is MP3:
+			mt := mime.TypeByExtension(path.Ext(dfi.Name()))
+		    if mt == "audio/mpeg" {
+				fmt.Fprintf(rsp, `
+		  <td class="p"><a href="%s" class="play">&gt;</a></td>`,
+					html.EscapeString(href),
+				)
+			} else {
+				fmt.Fprintf(rsp, `
+	      <td class="p"></td>`);
+			}
+
+		    fmt.Fprintf(rsp, `
           <td class="n"><a href="%s">%s</a></td>
           <td class="m">%s</td>
           <td class="s">%s</td>
@@ -383,7 +464,7 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 				html.EscapeString(name),
 				html.EscapeString(dfi.ModTime().Format("2006-01-02 15:04:05 -0700 MST")),
 				strings.Replace(html.EscapeString(sizeText), " ", "&nbsp;", -1),
-				html.EscapeString(mime.TypeByExtension(path.Ext(dfi.Name()))),
+				html.EscapeString(mt),
 			)
 		}
 
