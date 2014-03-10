@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"html"
 	"log"
@@ -132,6 +133,14 @@ func doRedirect(req *http.Request, rsp http.ResponseWriter, url string, code int
 }
 
 func doOK(req *http.Request, msg string, code int) {
+}
+
+func marshal(v interface{}) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
 }
 
 // Serves an index.html file for a directory or sends the requested file.
@@ -313,84 +322,131 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 		wmode: "window"
       });
 
-	  $("a.play").click(function(e) {
-	     e.preventDefault();
-		 $("#jplayer").jPlayer("setMedia", { mp3: $(this).attr("href") });
-		 $("#jplayer").jPlayer("play");
-		 return false;
-	  });
+      new jPlayerPlaylist({ jPlayer: "#jplayer" }, [
+`, pathHtml)
+
+		// Generate jPlayer playlist:
+		first := true
+		for _, dfi := range fis {
+			name := dfi.Name()
+			if name[0] == '.' {
+				continue
+			}
+
+			dfiPath := path.Join(localPath, name)
+			// Check symlink:
+			if (dfi.Mode() & os.ModeSymlink) != 0 {
+				if targetPath, err := os.Readlink(dfiPath); err == nil {
+					// Find the absolute path of the symlink's target:
+					if !path.IsAbs(targetPath) {
+						targetPath = path.Join(localPath, targetPath)
+					}
+					if tdfi, err := os.Stat(targetPath); err == nil {
+						// Change to the target so we get its properties instead of the symlink's:
+						dfi = tdfi
+					}
+				}
+			}
+
+			href := translateForProxy(dfiPath)
+
+			if dfi.IsDir() {
+				continue
+			}
+
+			mt := mime.TypeByExtension(path.Ext(dfi.Name()))
+			if mt != "audio/mpeg" {
+				continue
+			}
+
+			if !first {
+				fmt.Fprintf(rsp, ", ")
+			} else {
+				fmt.Fprintf(rsp, "  ")
+			}
+			fmt.Fprintf(rsp, `{ title: %s, mp3: %s }\n`,
+				marshal(name),
+				marshal(href),
+			)
+			first = false
+		}
+
+		// End playlist:
+		fmt.Fprintf(rsp, `
+      ]);
 	});
   </script>
-</head>`, pathHtml)
+</head>`)
 
 		fmt.Fprintf(rsp, `
 <body>
   <h2>Index of %s</h2>`, pathHtml)
 
-  		fmt.Fprintf(rsp, `
+		fmt.Fprintf(rsp, `
   <div id="jplayer" class="jp-jplayer"></div>
 
   <div id="jp_container_1" class="jp-audio">
-       <div class="jp-type-single">
-           <div class="jp-gui jp-interface">
-                    <ul class="jp-controls">
-                        <li><a href="javascript:;" class="jp-play" tabindex="1">play</a></li>
-                        <li><a href="javascript:;" class="jp-pause" tabindex="1">pause</a></li>
-                        <li><a href="javascript:;" class="jp-stop" tabindex="1">stop</a></li>
-                        <li><a href="javascript:;" class="jp-mute" tabindex="1" title="mute">mute</a></li>
-                        <li><a href="javascript:;" class="jp-unmute" tabindex="1" title="unmute">unmute</a></li>
-                        <li><a href="javascript:;" class="jp-volume-max" tabindex="1" title="max volume">max volume</a></li>
-                    </ul>
-                    <div class="jp-progress">
-                        <div class="jp-seek-bar">
-                            <div class="jp-play-bar"></div>
-                        </div>
-                    </div>
-                    <div class="jp-volume-bar">
-                        <div class="jp-volume-bar-value"></div>
-                    </div>
-                    <div class="jp-time-holder">
-                        <div class="jp-current-time"></div>
-                        <div class="jp-duration"></div>
-
-                        <ul class="jp-toggles">
-                            <li><a href="javascript:;" class="jp-repeat" tabindex="1" title="repeat">repeat</a></li>
-                            <li><a href="javascript:;" class="jp-repeat-off" tabindex="1" title="repeat off">repeat off</a></li>
-                        </ul>
-                    </div>
-                </div>
-                <div class="jp-title">
-                    <ul>
-                        <li></li>
-                    </ul>
-                </div>
-                <div class="jp-no-solution">
-                    <span>Update Required</span>
-                    To play the media you will need to either update your browser to a recent version or update your <a href="http://get.adobe.com/flashplayer/" target="_blank">Flash plugin</a>.
+    <div class="jp-type-playlist">
+        <div class="jp-gui jp-interface">
+            <ul class="jp-controls">
+                <li><a href="javascript:;" class="jp-previous" tabindex="1">previous</a></li>
+                <li><a href="javascript:;" class="jp-play" tabindex="1">play</a></li>
+                <li><a href="javascript:;" class="jp-pause" tabindex="1">pause</a></li>
+                <li><a href="javascript:;" class="jp-next" tabindex="1">next</a></li>
+                <li><a href="javascript:;" class="jp-stop" tabindex="1">stop</a></li>
+                <li><a href="javascript:;" class="jp-mute" tabindex="1" title="mute">mute</a></li>
+                <li><a href="javascript:;" class="jp-unmute" tabindex="1" title="unmute">unmute</a></li>
+                <li><a href="javascript:;" class="jp-volume-max" tabindex="1" title="max volume">max volume</a></li>
+            </ul>
+            <div class="jp-progress">
+                <div class="jp-seek-bar">
+                    <div class="jp-play-bar"></div>
                 </div>
             </div>
+            <div class="jp-volume-bar">
+                <div class="jp-volume-bar-value"></div>
+            </div>
+            <div class="jp-time-holder">
+                <div class="jp-current-time"></div>
+                <div class="jp-duration"></div>
+            </div>
+            <ul class="jp-toggles">
+                <li><a href="javascript:;" class="jp-shuffle" tabindex="1" title="shuffle">shuffle</a></li>
+                <li><a href="javascript:;" class="jp-shuffle-off" tabindex="1" title="shuffle off">shuffle off</a></li>
+                <li><a href="javascript:;" class="jp-repeat" tabindex="1" title="repeat">repeat</a></li>
+                <li><a href="javascript:;" class="jp-repeat-off" tabindex="1" title="repeat off">repeat off</a></li>
+            </ul>
         </div>
+        <div class="jp-playlist">
+            <ul>
+                <li></li>
+            </ul>
+        </div>
+        <div class="jp-no-solution">
+            <span>Update Required</span>
+            To play the media you will need to either update your browser to a recent version or update your <a href="http://get.adobe.com/flashplayer/" target="_blank">Flash plugin</a>.
+        </div>
+    </div>
+  </div>
 `)
 		fmt.Fprintf(rsp, `
   <div class="list">
     <table cellpadding="0" cellspacing="0" summary="Directory Listing">
       <thead>
         <tr>
-		  <th class="p"></th>
           <th class="n"><a href="%s?sort=%s">Name</a></th>
           <th class="m"><a href="%s?sort=%s">Last Modified</a></th>
           <th class="s"><a href="%s?sort=%s">Size</a></th>
           <th class="t">Type</th>
         </tr>
       </thead>
-      <tbody>`, pathHtml,nameSort, pathHtml,dateSort, pathHtml,sizeSort )
+      <tbody>`, pathHtml, nameSort, pathHtml, dateSort, pathHtml, sizeSort)
 
 		// Add the Parent Directory link if we're above the jail root:
 		if startsWith(baseDir, jailRoot) {
 			hrefParent := translateForProxy(baseDir) + "/"
 			fmt.Fprintf(rsp, `
         <tr>
-		  <td class="p"></td>
           <td class="n"><a href="%s">../</a></td>
           <td class="m"></td>
           <td class="s"></td>
@@ -420,6 +476,7 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 			}
 
 			href := translateForProxy(dfiPath)
+			mt := mime.TypeByExtension(path.Ext(dfi.Name()))
 
 			sizeText := ""
 			if dfi.IsDir() {
@@ -440,21 +497,7 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 			}
 
 			fmt.Fprintf(rsp, `
-        <tr>`)
-
-		    // Add a "play" link if mime type is MP3:
-			mt := mime.TypeByExtension(path.Ext(dfi.Name()))
-		    if mt == "audio/mpeg" {
-				fmt.Fprintf(rsp, `
-		  <td class="p"><a href="%s" class="play">&gt;</a></td>`,
-					html.EscapeString(href),
-				)
-			} else {
-				fmt.Fprintf(rsp, `
-	      <td class="p"></td>`);
-			}
-
-		    fmt.Fprintf(rsp, `
+        <tr>
           <td class="n"><a href="%s">%s</a></td>
           <td class="m">%s</td>
           <td class="s">%s</td>
