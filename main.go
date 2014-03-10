@@ -123,6 +123,26 @@ func (s BySize) Less(i, j int) bool {
 	}
 }
 
+func followSymlink(localPath string, dfi os.FileInfo) os.FileInfo {
+	// Check symlink:
+	if (dfi.Mode() & os.ModeSymlink) != 0 {
+
+		dfiPath := path.Join(localPath, dfi.Name())
+		if targetPath, err := os.Readlink(dfiPath); err == nil {
+			// Find the absolute path of the symlink's target:
+			if !path.IsAbs(targetPath) {
+				targetPath = path.Join(localPath, targetPath)
+			}
+			if tdfi, err := os.Stat(targetPath); err == nil {
+				// Change to the target so we get its properties instead of the symlink's:
+				return tdfi
+			}
+		}
+	}
+
+	return dfi
+}
+
 // Logging+action functions
 func doError(req *http.Request, rsp http.ResponseWriter, msg string, code int) {
 	http.Error(rsp, msg, code)
@@ -135,6 +155,7 @@ func doRedirect(req *http.Request, rsp http.ResponseWriter, url string, code int
 func doOK(req *http.Request, msg string, code int) {
 }
 
+// Marshal an object to JSON or panic.
 func marshal(v interface{}) string {
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -274,6 +295,18 @@ func indexHtml(rsp http.ResponseWriter, req *http.Request) {
 			return
 		}
 
+		// Check if there are MP3s in this directory:
+		hasMP3s := false
+		for _, dfi := range fis {
+			dfi = followSymlink(localPath, dfi)
+			mt := mime.TypeByExtension(path.Ext(dfi.Name()))
+			if mt != "audio/mpeg" {
+				continue
+			}
+			hasMP3s = true
+			break
+		}
+
 		// Sort the entries by the desired mode:
 		switch sortBy {
 		default:
@@ -310,79 +343,76 @@ td.s, th.s {text-align: right;}
 div.list { background-color: white; border-top: 1px solid #646464; border-bottom: 1px solid #646464; padding-top: 10px; padding-bottom: 14px;}
 div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
   </style>
+`, pathHtml)
 
+		if hasMP3s {
+			fmt.Fprintf(rsp, `
   <link href="/js/jplayer.blue.monday.css" rel="stylesheet" type="text/css" />
   <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.0.min.js"></script>
   <script type="text/javascript" src="/js/jquery.jplayer.min.js"></script>
+  <script type="text/javascript" src="/js/jplayer.playlist.min.js"></script>
   <script type="text/javascript">
     $(function() {
-      $("#jplayer").jPlayer({
+      new jPlayerPlaylist({ jPlayer: "#jplayer" }, [
+`)
+
+			// Generate jPlayer playlist:
+			first := true
+			for _, dfi := range fis {
+				name := dfi.Name()
+				if name[0] == '.' {
+					continue
+				}
+
+				dfi = followSymlink(localPath, dfi)
+
+				dfiPath := path.Join(localPath, name)
+				href := translateForProxy(dfiPath)
+
+				if dfi.IsDir() {
+					continue
+				}
+
+				mt := mime.TypeByExtension(path.Ext(dfi.Name()))
+				if mt != "audio/mpeg" {
+					continue
+				}
+
+				if !first {
+					fmt.Fprintf(rsp, ", ")
+				} else {
+					fmt.Fprintf(rsp, "  ")
+				}
+				fmt.Fprintf(rsp, "{ title: %s, mp3: %s }\n",
+					marshal(name),
+					marshal(href),
+				)
+				first = false
+			}
+
+			// End playlist:
+			fmt.Fprintf(rsp, `
+      ], {
         swfPath: "/js",
 		supplied: "mp3",
 		wmode: "window"
       });
 
-      new jPlayerPlaylist({ jPlayer: "#jplayer" }, [
-`, pathHtml)
-
-		// Generate jPlayer playlist:
-		first := true
-		for _, dfi := range fis {
-			name := dfi.Name()
-			if name[0] == '.' {
-				continue
-			}
-
-			dfiPath := path.Join(localPath, name)
-			// Check symlink:
-			if (dfi.Mode() & os.ModeSymlink) != 0 {
-				if targetPath, err := os.Readlink(dfiPath); err == nil {
-					// Find the absolute path of the symlink's target:
-					if !path.IsAbs(targetPath) {
-						targetPath = path.Join(localPath, targetPath)
-					}
-					if tdfi, err := os.Stat(targetPath); err == nil {
-						// Change to the target so we get its properties instead of the symlink's:
-						dfi = tdfi
-					}
-				}
-			}
-
-			href := translateForProxy(dfiPath)
-
-			if dfi.IsDir() {
-				continue
-			}
-
-			mt := mime.TypeByExtension(path.Ext(dfi.Name()))
-			if mt != "audio/mpeg" {
-				continue
-			}
-
-			if !first {
-				fmt.Fprintf(rsp, ", ")
-			} else {
-				fmt.Fprintf(rsp, "  ")
-			}
-			fmt.Fprintf(rsp, `{ title: %s, mp3: %s }\n`,
-				marshal(name),
-				marshal(href),
-			)
-			first = false
-		}
-
-		// End playlist:
-		fmt.Fprintf(rsp, `
-      ]);
 	});
   </script>
+`)
+
+		}
+
+		fmt.Fprintf(rsp, `
 </head>`)
 
 		fmt.Fprintf(rsp, `
 <body>
   <h2>Index of %s</h2>`, pathHtml)
 
-		fmt.Fprintf(rsp, `
+		if hasMP3s {
+			fmt.Fprintf(rsp, `
   <div id="jplayer" class="jp-jplayer"></div>
 
   <div id="jp_container_1" class="jp-audio">
@@ -429,6 +459,8 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
     </div>
   </div>
 `)
+		}
+
 		fmt.Fprintf(rsp, `
   <div class="list">
     <table cellpadding="0" cellspacing="0" summary="Directory Listing">
@@ -461,19 +493,7 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 			}
 
 			dfiPath := path.Join(localPath, name)
-			// Check symlink:
-			if (dfi.Mode() & os.ModeSymlink) != 0 {
-				if targetPath, err := os.Readlink(dfiPath); err == nil {
-					// Find the absolute path of the symlink's target:
-					if !path.IsAbs(targetPath) {
-						targetPath = path.Join(localPath, targetPath)
-					}
-					if tdfi, err := os.Stat(targetPath); err == nil {
-						// Change to the target so we get its properties instead of the symlink's:
-						dfi = tdfi
-					}
-				}
-			}
+			dfi = followSymlink(localPath, dfi)
 
 			href := translateForProxy(dfiPath)
 			mt := mime.TypeByExtension(path.Ext(dfi.Name()))
