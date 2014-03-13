@@ -25,15 +25,12 @@ div.jp-video {
 	font-size:1.25em; /* 1.25em for testing in site pages */ /* No parent CSS that can effect the size in the demos ZIP */
 
 	font-family:Verdana, Arial, sans-serif;
-	line-height:1.1;
 	color: #666;
 	border:1px solid #000;
 	background-color:#F5F5F5;
 }
 div.jp-audio {
 	width:420px;
-	float:left;
-	margin-right:12px;
 }
 div.jp-audio-stream {
 	width:182px;
@@ -409,7 +406,7 @@ div.jp-title li {
 	font-weight:bold;
 }
 div.jp-playlist li {
-	padding: 0px 0px 0px 20px;
+	padding: 2px 0px 0px 20px;
 	/*border-bottom:1px solid #eee;*/
 }
 

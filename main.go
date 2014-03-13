@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"html"
 	"log"
@@ -19,6 +20,8 @@ import (
 )
 
 var proxyRoot, jailRoot, accelRedirect string
+var jplayerUrl, jplayerPath string
+var useJPlayer bool
 
 func startsWith(s, start string) bool {
 	if len(s) < len(start) {
@@ -164,167 +167,123 @@ func marshal(v interface{}) string {
 	return string(b)
 }
 
-// Serves an index.html file for a directory or sends the requested file.
-func indexHtml(rsp http.ResponseWriter, req *http.Request) {
-	// lighttpd proxy sends us absolute path URLs
-	u, err := url.Parse(req.RequestURI)
-	if err != nil {
-		log.Fatal(err)
+func isMP3(filename string) bool {
+	ext := path.Ext(filename)
+	mt := mime.TypeByExtension(ext)
+	if mt != "audio/mpeg" {
+		return false
 	}
+	if ext != ".mp3" {
+		return false
+	}
+	return true
+}
 
+func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) {
+	// Build index.html
 	relPath := removeIfStartsWith(u.Path, proxyRoot)
 
 	localPath := path.Join(jailRoot, relPath)
 	pathLink := path.Join(proxyRoot, relPath)
 
-	// Check if the requested path is a symlink:
-	fi, err := os.Lstat(localPath)
-	if fi != nil && (fi.Mode()&os.ModeSymlink) != 0 {
-		localDir := path.Dir(localPath)
-
-		// Check if file is a symlink and do 302 redirect:
-		linkDest, err := os.Readlink(localPath)
-		if err != nil {
-			doError(req, rsp, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		// NOTE(jsd): Problem here for links outside the jail folder.
-		if path.IsAbs(linkDest) && !startsWith(linkDest, jailRoot) {
-			doError(req, rsp, "Symlink points outside of jail", http.StatusBadRequest)
-			return
-		}
-
-		linkDest = path.Join(localDir, linkDest)
-		tp := translateForProxy(linkDest)
-
-		doRedirect(req, rsp, tp, http.StatusFound)
-		return
+	baseDir := path.Dir(localPath)
+	if localPath[len(localPath)-1] == '/' {
+		baseDir = path.Dir(localPath[0 : len(localPath)-1])
+	}
+	if baseDir == "" {
+		baseDir = "/"
 	}
 
-	// Regular stat
-	fi, err = os.Stat(localPath)
+	// Determine what mode to sort by...
+	sortString := ""
+
+	// Check the .index-sort file:
+	if sf, err := os.Open(path.Join(localPath, ".index-sort")); err == nil {
+		defer sf.Close()
+		scanner := bufio.NewScanner(sf)
+		if scanner.Scan() {
+			sortString = scanner.Text()
+		}
+	}
+
+	// Use query-string 'sort' to override sorting:
+	sortStringQuery := u.Query().Get("sort")
+	if sortStringQuery != "" {
+		sortString = sortStringQuery
+	}
+
+	// default Sort mode for headers
+	nameSort := "name-asc"
+	dateSort := "date-asc"
+	sizeSort := "size-asc"
+
+	// Determine the sorting mode:
+	sortBy, sortDir := sortByName, sortAscending
+	switch sortString {
+	case "size-desc":
+		sortBy, sortDir = sortBySize, sortDescending
+	case "size-asc":
+		sortBy, sortDir = sortBySize, sortAscending
+		sizeSort = "size-desc"
+	case "date-desc":
+		sortBy, sortDir = sortByDate, sortDescending
+	case "date-asc":
+		sortBy, sortDir = sortByDate, sortAscending
+		dateSort = "date-desc"
+	case "name-desc":
+		sortBy, sortDir = sortByName, sortDescending
+	case "name-asc":
+		sortBy, sortDir = sortByName, sortAscending
+		nameSort = "name-desc"
+	default:
+	}
+
+	// Open the directory to read its contents:
+	f, err := os.Open(localPath)
 	if err != nil {
-		doError(req, rsp, err.Error(), http.StatusNotFound)
+		doError(req, rsp, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+
+	// Read the directory entries:
+	fis, err := f.Readdir(0)
+	if err != nil {
+		doError(req, rsp, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// Serve the file if it is regular:
-	if fi.Mode().IsRegular() {
-		// Send file:
-
-		// NOTE(jsd): using `http.ServeFile` does not appear to handle range requests well. Lots of broken pipe errors
-		// that lead to a poor client experience. X-Accel-Redirect back to nginx is much better.
-
-		redirPath := path.Join(accelRedirect, relPath)
-		rsp.Header().Add("X-Accel-Redirect", redirPath)
-		rsp.Header().Add("Content-Type", mime.TypeByExtension(path.Ext(localPath)))
-		rsp.WriteHeader(200)
-
-		return
-	}
-
-	// Generate an index.html for directories:
-	if fi.Mode().IsDir() {
-		// Build index.html
-
-		baseDir := path.Dir(localPath)
-		if localPath[len(localPath)-1] == '/' {
-			baseDir = path.Dir(localPath[0 : len(localPath)-1])
-		}
-		if baseDir == "" {
-			baseDir = "/"
-		}
-
-		// Determine what mode to sort by...
-		sortString := ""
-
-		// Check the .index-sort file:
-		if sf, err := os.Open(path.Join(localPath, ".index-sort")); err == nil {
-			defer sf.Close()
-			scanner := bufio.NewScanner(sf)
-			if scanner.Scan() {
-				sortString = scanner.Text()
-			}
-		}
-
-		// Use query-string 'sort' to override sorting:
-		sortStringQuery := u.Query().Get("sort")
-		if sortStringQuery != "" {
-			sortString = sortStringQuery
-		}
-
-		// default Sort mode for headers
-		nameSort := "name-asc"
-		dateSort := "date-asc"
-		sizeSort := "size-asc"
-
-		// Determine the sorting mode:
-		sortBy, sortDir := sortByName, sortAscending
-		switch sortString {
-		case "size-desc":
-			sortBy, sortDir = sortBySize, sortDescending
-		case "size-asc":
-			sortBy, sortDir = sortBySize, sortAscending
-			sizeSort = "size-desc"
-		case "date-desc":
-			sortBy, sortDir = sortByDate, sortDescending
-		case "date-asc":
-			sortBy, sortDir = sortByDate, sortAscending
-			dateSort = "date-desc"
-		case "name-desc":
-			sortBy, sortDir = sortByName, sortDescending
-		case "name-asc":
-			sortBy, sortDir = sortByName, sortAscending
-			nameSort = "name-desc"
-		default:
-		}
-
-		// Open the directory to read its contents:
-		f, err := os.Open(localPath)
-		if err != nil {
-			doError(req, rsp, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer f.Close()
-
-		// Read the directory entries:
-		fis, err := f.Readdir(0)
-		if err != nil {
-			doError(req, rsp, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		// Check if there are MP3s in this directory:
-		hasMP3s := false
+	// Check if there are MP3s in this directory:
+	hasMP3s := false
+	if useJPlayer {
 		for _, dfi := range fis {
 			dfi = followSymlink(localPath, dfi)
-			mt := mime.TypeByExtension(path.Ext(dfi.Name()))
-			if mt != "audio/mpeg" {
+			if !isMP3(dfi.Name()) {
 				continue
 			}
 			hasMP3s = true
 			break
 		}
+	}
 
-		// Sort the entries by the desired mode:
-		switch sortBy {
-		default:
-			sort.Sort(ByName{fis, sortDir})
-		case sortByName:
-			sort.Sort(ByName{fis, sortDir})
-		case sortByDate:
-			sort.Sort(ByDate{fis, sortDir})
-		case sortBySize:
-			sort.Sort(BySize{fis, sortDir})
-		}
+	// Sort the entries by the desired mode:
+	switch sortBy {
+	default:
+		sort.Sort(ByName{fis, sortDir})
+	case sortByName:
+		sort.Sort(ByName{fis, sortDir})
+	case sortByDate:
+		sort.Sort(ByDate{fis, sortDir})
+	case sortBySize:
+		sort.Sort(BySize{fis, sortDir})
+	}
 
-		// TODO: check Accepts header to reply accordingly (i.e. add JSON support)
+	// TODO: check Accepts header to reply accordingly (i.e. add JSON support)
 
-		pathHtml := html.EscapeString(pathLink)
+	pathHtml := html.EscapeString(pathLink)
 
-		rsp.Header().Add("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(rsp, `<!DOCTYPE html>
+	rsp.Header().Add("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprintf(rsp, `<!DOCTYPE html>
 
 <html>
 <head>
@@ -339,59 +298,67 @@ table {margin-left: 12px;}
 th, td { font: 90%% monospace; text-align: left;}
 th { font-weight: bold; padding-right: 14px; padding-bottom: 3px;}
 td {padding-right: 14px;}
-td.s, th.s {text-align: right;}
+td.n, th.n {white-space: nowrap;}
+td.m, th.m {white-space: nowrap;}
+td.s, th.s {white-space: nowrap; text-align: right;}
 div.list { background-color: white; border-top: 1px solid #646464; border-bottom: 1px solid #646464; padding-top: 10px; padding-bottom: 14px;}
 div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
   </style>
 `, pathHtml)
 
-		if hasMP3s {
-			fmt.Fprintf(rsp, `
-  <link href="/js/jplayer.blue.monday.css" rel="stylesheet" type="text/css" />
-  <script type="text/javascript" src="https://code.jquery.com/jquery-1.11.0.min.js"></script>
-  <script type="text/javascript" src="/js/jquery.jplayer.min.js"></script>
-  <script type="text/javascript" src="/js/jplayer.playlist.min.js"></script>
+	if hasMP3s {
+		fmt.Fprintf(rsp, `
+  <link href="%[1]s/jplayer.blue.monday.css" rel="stylesheet" type="text/css" />
+  <script type="text/javascript" src="//code.jquery.com/jquery-1.11.0.min.js"></script>
+  <script type="text/javascript" src="%[1]s/jquery.jplayer.min.js"></script>
+  <script type="text/javascript" src="%[1]s/jplayer.playlist.min.js"></script>
   <script type="text/javascript">
     $(function() {
       new jPlayerPlaylist({ jPlayer: "#jplayer" }, [
-`)
+`, jplayerUrl)
 
-			// Generate jPlayer playlist:
-			first := true
-			for _, dfi := range fis {
-				name := dfi.Name()
-				if name[0] == '.' {
-					continue
-				}
-
-				dfi = followSymlink(localPath, dfi)
-
-				dfiPath := path.Join(localPath, name)
-				href := translateForProxy(dfiPath)
-
-				if dfi.IsDir() {
-					continue
-				}
-
-				mt := mime.TypeByExtension(path.Ext(dfi.Name()))
-				if mt != "audio/mpeg" {
-					continue
-				}
-
-				if !first {
-					fmt.Fprintf(rsp, ", ")
-				} else {
-					fmt.Fprintf(rsp, "  ")
-				}
-				fmt.Fprintf(rsp, "{ title: %s, mp3: %s }\n",
-					marshal(name),
-					marshal(href),
-				)
-				first = false
+		// Generate jPlayer playlist:
+		first := true
+		for _, dfi := range fis {
+			name := dfi.Name()
+			if name[0] == '.' {
+				continue
 			}
 
-			// End playlist:
-			fmt.Fprintf(rsp, `
+			dfi = followSymlink(localPath, dfi)
+
+			dfiPath := path.Join(localPath, name)
+			href := translateForProxy(dfiPath)
+
+			if dfi.IsDir() {
+				continue
+			}
+
+			if !isMP3(name) {
+				continue
+			}
+
+			if !first {
+				fmt.Fprintf(rsp, ", ")
+			} else {
+				fmt.Fprintf(rsp, "  ")
+			}
+
+			ext := path.Ext(name)
+			onlyname := name
+			if ext != "" {
+				onlyname = name[0 : len(name)-len(ext)]
+			}
+
+			fmt.Fprintf(rsp, "{ title: %s, mp3: %s }\n",
+				marshal(onlyname),
+				marshal(href),
+			)
+			first = false
+		}
+
+		// End playlist:
+		fmt.Fprintf(rsp, `
       ], {
         swfPath: "/js",
 		supplied: "mp3",
@@ -401,21 +368,20 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 	});
   </script>
 `)
+	}
 
-		}
-
-		fmt.Fprintf(rsp, `
+	fmt.Fprintf(rsp, `
 </head>`)
 
-		fmt.Fprintf(rsp, `
+	fmt.Fprintf(rsp, `
 <body>
   <h2>Index of %s</h2>`, pathHtml)
 
-		if hasMP3s {
-			fmt.Fprintf(rsp, `
+	if hasMP3s {
+		fmt.Fprintf(rsp, `
   <div id="jplayer" class="jp-jplayer"></div>
 
-  <div id="jp_container_1" class="jp-audio">
+  <div id="jp_container_1" class="jp-audio" style="float: left; margin-right:12px;">
     <div class="jp-type-playlist">
         <div class="jp-gui jp-interface">
             <ul class="jp-controls">
@@ -459,10 +425,10 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
     </div>
   </div>
 `)
-		}
+	}
 
-		fmt.Fprintf(rsp, `
-  <div class="list">
+	fmt.Fprintf(rsp, `
+  <div class="list" style="overflow: auto">
     <table cellpadding="0" cellspacing="0" summary="Directory Listing">
       <thead>
         <tr>
@@ -474,91 +440,175 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
       </thead>
       <tbody>`, pathHtml, nameSort, pathHtml, dateSort, pathHtml, sizeSort)
 
-		// Add the Parent Directory link if we're above the jail root:
-		if startsWith(baseDir, jailRoot) {
-			hrefParent := translateForProxy(baseDir) + "/"
-			fmt.Fprintf(rsp, `
+	// Add the Parent Directory link if we're above the jail root:
+	if startsWith(baseDir, jailRoot) {
+		hrefParent := translateForProxy(baseDir) + "/"
+		fmt.Fprintf(rsp, `
         <tr>
           <td class="n"><a href="%s">../</a></td>
           <td class="m"></td>
           <td class="s"></td>
           <td class="t">Directory</td>
         </tr>`, hrefParent)
+	}
+
+	for _, dfi := range fis {
+		name := dfi.Name()
+		if name[0] == '.' {
+			continue
 		}
 
-		for _, dfi := range fis {
-			name := dfi.Name()
-			if name[0] == '.' {
-				continue
-			}
+		dfiPath := path.Join(localPath, name)
+		dfi = followSymlink(localPath, dfi)
 
-			dfiPath := path.Join(localPath, name)
-			dfi = followSymlink(localPath, dfi)
+		href := translateForProxy(dfiPath)
+		mt := mime.TypeByExtension(path.Ext(dfi.Name()))
 
-			href := translateForProxy(dfiPath)
-			mt := mime.TypeByExtension(path.Ext(dfi.Name()))
-
-			sizeText := ""
-			if dfi.IsDir() {
-				sizeText = "-"
-				name += "/"
-				href += "/"
+		sizeText := ""
+		if dfi.IsDir() {
+			sizeText = "-"
+			name += "/"
+			href += "/"
+		} else {
+			size := dfi.Size()
+			if size < 1024 {
+				sizeText = fmt.Sprintf("%d  B", size)
+			} else if size < 1024*1024 {
+				sizeText = fmt.Sprintf("%.02f KB", float64(size)/1024.0)
+			} else if size < 1024*1024*1024 {
+				sizeText = fmt.Sprintf("%.02f MB", float64(size)/(1024.0*1024.0))
 			} else {
-				size := dfi.Size()
-				if size < 1024 {
-					sizeText = fmt.Sprintf("%d  B", size)
-				} else if size < 1024*1024 {
-					sizeText = fmt.Sprintf("%.02f KB", float64(size)/1024.0)
-				} else if size < 1024*1024*1024 {
-					sizeText = fmt.Sprintf("%.02f MB", float64(size)/(1024.0*1024.0))
-				} else {
-					sizeText = fmt.Sprintf("%.02f GB", float64(size)/(1024.0*1024.0*1024.0))
-				}
+				sizeText = fmt.Sprintf("%.02f GB", float64(size)/(1024.0*1024.0*1024.0))
 			}
+		}
 
-			fmt.Fprintf(rsp, `
+		fmt.Fprintf(rsp, `
         <tr>
           <td class="n"><a href="%s">%s</a></td>
           <td class="m">%s</td>
           <td class="s">%s</td>
           <td class="t">%s</td>
         </tr>`,
-				html.EscapeString(href),
-				html.EscapeString(name),
-				html.EscapeString(dfi.ModTime().Format("2006-01-02 15:04:05 -0700 MST")),
-				strings.Replace(html.EscapeString(sizeText), " ", "&nbsp;", -1),
-				html.EscapeString(mt),
-			)
-		}
+			html.EscapeString(href),
+			html.EscapeString(name),
+			html.EscapeString(dfi.ModTime().Format("2006-01-02 15:04:05 -0700 MST")),
+			strings.Replace(html.EscapeString(sizeText), " ", "&nbsp;", -1),
+			html.EscapeString(mt),
+		)
+	}
 
-		fmt.Fprintf(rsp, `
+	fmt.Fprintf(rsp, `
       </tbody>
     </table>
   </div>
 </body>
 </html>`)
 
-		doOK(req, localPath, http.StatusOK)
+	doOK(req, localPath, http.StatusOK)
+	return
+}
+
+func processProxiedRequest(rsp http.ResponseWriter, req *http.Request, u *url.URL) {
+	relPath := removeIfStartsWith(u.Path, proxyRoot)
+	localPath := path.Join(jailRoot, relPath)
+
+	// Check if the requested path is a symlink:
+	fi, err := os.Lstat(localPath)
+	if fi != nil && (fi.Mode()&os.ModeSymlink) != 0 {
+		localDir := path.Dir(localPath)
+
+		// Check if file is a symlink and do 302 redirect:
+		linkDest, err := os.Readlink(localPath)
+		if err != nil {
+			doError(req, rsp, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// NOTE(jsd): Problem here for links outside the jail folder.
+		if path.IsAbs(linkDest) && !startsWith(linkDest, jailRoot) {
+			doError(req, rsp, "Symlink points outside of jail", http.StatusBadRequest)
+			return
+		}
+
+		linkDest = path.Join(localDir, linkDest)
+		tp := translateForProxy(linkDest)
+
+		doRedirect(req, rsp, tp, http.StatusFound)
+		return
+	}
+
+	// Regular stat
+	fi, err = os.Stat(localPath)
+	if err != nil {
+		doError(req, rsp, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Serve the file if it is regular:
+	if fi.Mode().IsRegular() {
+		// Send file:
+
+		// NOTE(jsd): using `http.ServeFile` does not appear to handle range requests well. Lots of broken pipe errors
+		// that lead to a poor client experience. X-Accel-Redirect back to nginx is much better.
+
+		if accelRedirect != "" {
+			// Use X-Accel-Redirect if the cmdline option was given:
+			redirPath := path.Join(accelRedirect, relPath)
+			rsp.Header().Add("X-Accel-Redirect", redirPath)
+			rsp.Header().Add("Content-Type", mime.TypeByExtension(path.Ext(localPath)))
+			rsp.WriteHeader(200)
+		} else {
+			// Just serve the file directly from the filesystem:
+			http.ServeFile(rsp, req, localPath)
+		}
+
+		return
+	}
+
+	// Generate an index.html for directories:
+	if fi.Mode().IsDir() {
+		generateIndexHtml(rsp, req, u)
+		return
+	}
+}
+
+// Serves an index.html file for a directory or sends the requested file.
+func processRequest(rsp http.ResponseWriter, req *http.Request) {
+	// proxy sends us absolute path URLs
+	u, err := url.Parse(req.RequestURI)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if (jplayerPath != "") && startsWith(u.Path, jplayerUrl) {
+		// URL is under the jPlayer path:
+		localPath := path.Join(jplayerPath, removeIfStartsWith(u.Path, jplayerUrl))
+		http.ServeFile(rsp, req, localPath)
+		return
+	} else if startsWith(u.Path, proxyRoot) {
+		// URL is under the proxy path:
+		processProxiedRequest(rsp, req, u)
 		return
 	}
 }
 
 func main() {
-	// Expect commandline arguments to specify:
-	//   <listen socket type> : "unix" or "tcp" type of socket to listen on
-	//   <listen address>     : network address to listen on if "tcp" or path to socket if "unix"
-	//   <web root>           : absolute path prefix on URLs
-	//   <accel redirect>     : nginx location prefix to internally redirect static file requests to
-	//   <filesystem root>    : local fs absolute path to serve files/folders from
-	args := os.Args[1:]
-	if len(args) != 5 {
-		log.Fatal("Required <listen socket type> <listen address> <web root> <accel redirect> <filesystem root> arguments")
-		return
-	}
+	var socketType string
+	var socketAddr string
 
 	// TODO(jsd): Make this pair of arguments a little more elegant, like "unix:/path/to/socket" or "tcp://:8080"
-	socketType, socketAddr := args[0], args[1]
-	proxyRoot, accelRedirect, jailRoot = args[2], args[3], args[4]
+	flag.StringVar(&socketType, "l", "tcp", `type of socket to listen on; "unix" or "tcp" (default)`)
+	flag.StringVar(&socketAddr, "a", ":8080", `address to listen on; ":8080" (default TCP port) or "/path/to/unix/socket"`)
+	flag.StringVar(&proxyRoot, "p", "/", "root of web requests to process")
+	flag.StringVar(&jailRoot, "r", ".", "local filesystem path to bind to web request root path")
+	flag.StringVar(&accelRedirect, "xa", "", "Root of X-Accel-Redirect paths to use)")
+	flag.StringVar(&jplayerUrl, "jp-url", "", `Web path to jPlayer files (e.g. "/js")`)
+	flag.StringVar(&jplayerPath, "jp-path", "", `Local filesystem path to jPlayer files`)
+	flag.Parse()
+
+	if (jplayerUrl != "") {
+		useJPlayer = true
+	}
 
 	// Create the socket to listen on:
 	l, err := net.Listen(socketType, socketAddr)
@@ -587,5 +637,5 @@ func main() {
 	}(sigc)
 
 	// Start the HTTP server:
-	log.Fatal(http.Serve(l, http.HandlerFunc(indexHtml)))
+	log.Fatal(http.Serve(l, http.HandlerFunc(processRequest)))
 }
