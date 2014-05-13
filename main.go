@@ -1,11 +1,14 @@
 package main
 
 import (
+	//"archive/tar"
+	"archive/zip"
 	"bufio"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"html"
+	"io"
 	"log"
 	"mime"
 	"net"
@@ -508,6 +511,90 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 	return
 }
 
+// Downloads contents of the current directory as a ZIP file, streamed to the client's browser:
+func downloadZip(rsp http.ResponseWriter, req *http.Request, u *url.URL, dir *os.FileInfo, localPath string) {
+	// Generate a decent filename based on the folder URL:
+	fullName := removeIfStartsWith(localPath, jailRoot)
+	fullName = removeIfStartsWith(fullName, "/")
+	// Translate '/' separators into '-':
+	fullName = strings.Map(func(i rune) rune {
+		if i == '/' {
+			return '-'
+		} else {
+			return i
+		}
+	}, fullName)
+
+	// Open the directory to read its contents:
+	f, err := os.Open(localPath)
+	if err != nil {
+		doError(req, rsp, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+
+	// Read the directory entries:
+	fis, err := f.Readdir(0)
+	if err != nil {
+		doError(req, rsp, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Make sure filenames are in ascending order:
+	sort.Sort(ByName{fis, sortAscending})
+
+	// Start with a 200 status and set up the download:
+	h := rsp.Header()
+	h.Set("Content-Type", "application/zip")
+	h.Set("Content-Description", "File Transfer")
+	// NOTE(jsd): Need proper HTTP value encoding here!
+	h.Set("Content-Disposition", "attachment; filename=\""+fullName+".zip\"")
+	h.Set("Content-Transfer-Encoding", "binary")
+	rsp.WriteHeader(http.StatusOK)
+
+	// Create a zip stream writing to the HTTP response:
+	zw := zip.NewWriter(rsp)
+	for _, fi := range fis {
+		name := fi.Name()
+		if name[0] == '.' {
+			continue
+		}
+
+		// Dereference symlinks, if applicable:
+		fi = followSymlink(localPath, fi)
+		fiPath := path.Join(localPath, name)
+
+		// Open the source file for reading:
+		f, err := os.Open(fiPath)
+		if err != nil {
+			panic(err)
+		}
+
+		// Create the ZIP entry to write to:
+		zfh, err := zip.FileInfoHeader(fi)
+		if err != nil {
+			panic(err)
+		}
+		// Don't bother compressing the file:
+		zfh.Method = zip.Store
+
+		zf, err := zw.CreateHeader(zfh)
+		if err != nil {
+			panic(err)
+		}
+
+		// Copy the file contents into the ZIP:
+		_, err = io.Copy(zf, f)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	// Mark the end of the ZIP stream:
+	zw.Close()
+	return
+}
+
 func processProxiedRequest(rsp http.ResponseWriter, req *http.Request, u *url.URL) {
 	relPath := removeIfStartsWith(u.Path, proxyRoot)
 	localPath := path.Join(jailRoot, relPath)
@@ -567,6 +654,19 @@ func processProxiedRequest(rsp http.ResponseWriter, req *http.Request, u *url.UR
 
 	// Generate an index.html for directories:
 	if fi.Mode().IsDir() {
+		dl := u.Query().Get("dl")
+		if dl != "" {
+			switch dl {
+			default:
+				fallthrough
+			case "zip":
+				downloadZip(rsp, req, u, &fi, localPath)
+				//case "tar":
+				//	downloadTar(rsp, req, u, &fi, localPath)
+			}
+			return
+		}
+
 		generateIndexHtml(rsp, req, u)
 		return
 	}
@@ -606,7 +706,7 @@ func main() {
 	flag.StringVar(&jplayerPath, "jp-path", "", `Local filesystem path to jPlayer files`)
 	flag.Parse()
 
-	if (jplayerUrl != "") {
+	if jplayerUrl != "" {
 		useJPlayer = true
 	}
 
