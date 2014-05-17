@@ -525,19 +525,22 @@ func downloadZip(rsp http.ResponseWriter, req *http.Request, u *url.URL, dir *os
 		}
 	}, fullName)
 
-	// Open the directory to read its contents:
-	f, err := os.Open(localPath)
-	if err != nil {
-		doError(req, rsp, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer f.Close()
+	var fis []os.FileInfo
+	{
+		// Open the directory to read its contents:
+		df, err := os.Open(localPath)
+		if err != nil {
+			doError(req, rsp, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer df.Close()
 
-	// Read the directory entries:
-	fis, err := f.Readdir(0)
-	if err != nil {
-		doError(req, rsp, err.Error(), http.StatusInternalServerError)
-		return
+		// Read the directory entries:
+		fis, err = df.Readdir(0)
+		if err != nil {
+			doError(req, rsp, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	// Make sure filenames are in ascending order:
@@ -550,6 +553,36 @@ func downloadZip(rsp http.ResponseWriter, req *http.Request, u *url.URL, dir *os
 	// NOTE(jsd): Need proper HTTP value encoding here!
 	h.Set("Content-Disposition", "attachment; filename=\""+fullName+".zip\"")
 	h.Set("Content-Transfer-Encoding", "binary")
+
+	// Here we estimate the final length of the ZIP file being streamed:
+	const (
+		fileHeaderLen      = 30 // + filename + extra
+		dataDescriptorLen  = 16 // four uint32: descriptor signature, crc32, compressed size, size
+		directoryHeaderLen = 46 // + filename + extra + comment
+		directoryEndLen    = 22 // + comment
+	)
+
+	zipLength := 0
+	for _, fi := range fis {
+		zipLength += fileHeaderLen
+		zipLength += len(fi.Name())
+		// + extra
+
+		// TODO(jsd): ZIP64 support
+		size := fi.Size()
+		zipLength += int(size)
+		zipLength += dataDescriptorLen
+
+		// Directory entries:
+		zipLength += directoryHeaderLen
+		zipLength += len(fi.Name())
+		// + extra
+		// + comment
+	}
+	zipLength += directoryEndLen
+
+	h.Set("Content-Length", fmt.Sprintf("%d", zipLength))
+
 	rsp.WriteHeader(http.StatusOK)
 
 	// Create a zip stream writing to the HTTP response:
@@ -565,10 +598,11 @@ func downloadZip(rsp http.ResponseWriter, req *http.Request, u *url.URL, dir *os
 		fiPath := path.Join(localPath, name)
 
 		// Open the source file for reading:
-		f, err := os.Open(fiPath)
+		lf, err := os.Open(fiPath)
 		if err != nil {
 			panic(err)
 		}
+		defer lf.Close()
 
 		// Create the ZIP entry to write to:
 		zfh, err := zip.FileInfoHeader(fi)
@@ -584,7 +618,7 @@ func downloadZip(rsp http.ResponseWriter, req *http.Request, u *url.URL, dir *os
 		}
 
 		// Copy the file contents into the ZIP:
-		_, err = io.Copy(zf, f)
+		_, err = io.Copy(zf, lf)
 		if err != nil {
 			panic(err)
 		}
