@@ -564,6 +564,9 @@ func downloadZip(rsp http.ResponseWriter, req *http.Request, u *url.URL, dir *os
 
 	zipLength := 0
 	for _, fi := range fis {
+		if fi.IsDir() {
+			continue
+		}
 		zipLength += fileHeaderLen
 		zipLength += len(fi.Name())
 		// + extra
@@ -588,6 +591,9 @@ func downloadZip(rsp http.ResponseWriter, req *http.Request, u *url.URL, dir *os
 	// Create a zip stream writing to the HTTP response:
 	zw := zip.NewWriter(rsp)
 	for _, fi := range fis {
+		if fi.IsDir() {
+			continue
+		}
 		name := fi.Name()
 		if name[0] == '.' {
 			continue
