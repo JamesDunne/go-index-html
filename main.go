@@ -525,7 +525,7 @@ func downloadZip(rsp http.ResponseWriter, req *http.Request, u *url.URL, dir *os
 		}
 	}, fullName)
 
-	var fis []os.FileInfo
+	var raw_fis []os.FileInfo
 	{
 		// Open the directory to read its contents:
 		df, err := os.Open(localPath)
@@ -536,11 +536,22 @@ func downloadZip(rsp http.ResponseWriter, req *http.Request, u *url.URL, dir *os
 		defer df.Close()
 
 		// Read the directory entries:
-		fis, err = df.Readdir(0)
+		raw_fis, err = df.Readdir(0)
 		if err != nil {
 			doError(req, rsp, err.Error(), http.StatusInternalServerError)
 			return
 		}
+	}
+
+	// Clear out unzippable files:
+	fis := make([]os.FileInfo, 0, len(raw_fis))
+	for _, fi := range raw_fis {
+		name := fi.Name()
+		if name[0] == '.' {
+			continue
+		}
+
+		fis = append(fis, fi)
 	}
 
 	// Make sure filenames are in ascending order:
