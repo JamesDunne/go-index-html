@@ -547,10 +547,17 @@ func downloadZip(rsp http.ResponseWriter, req *http.Request, u *url.URL, dir *os
 	fis := make([]os.FileInfo, 0, len(raw_fis))
 	for _, fi := range raw_fis {
 		name := fi.Name()
+		if fi.IsDir() {
+			continue
+		}
 		if name[0] == '.' {
 			continue
 		}
 
+		// Dereference symlinks, if applicable:
+		fi = followSymlink(localPath, fi)
+
+		// Use this final file:
 		fis = append(fis, fi)
 	}
 
@@ -575,9 +582,6 @@ func downloadZip(rsp http.ResponseWriter, req *http.Request, u *url.URL, dir *os
 
 	zipLength := 0
 	for _, fi := range fis {
-		if fi.IsDir() {
-			continue
-		}
 		zipLength += fileHeaderLen
 		zipLength += len(fi.Name())
 		// + extra
@@ -602,16 +606,8 @@ func downloadZip(rsp http.ResponseWriter, req *http.Request, u *url.URL, dir *os
 	// Create a zip stream writing to the HTTP response:
 	zw := zip.NewWriter(rsp)
 	for _, fi := range fis {
-		if fi.IsDir() {
-			continue
-		}
 		name := fi.Name()
-		if name[0] == '.' {
-			continue
-		}
 
-		// Dereference symlinks, if applicable:
-		fi = followSymlink(localPath, fi)
 		fiPath := path.Join(localPath, name)
 
 		// Open the source file for reading:
