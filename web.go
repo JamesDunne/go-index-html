@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
-	"log"
 	"mime"
 	"net/http"
 	"net/url"
@@ -15,6 +14,9 @@ import (
 	"sort"
 	"strings"
 )
+
+//import "github.com/JamesDunne/go-util/base"
+import "github.com/JamesDunne/go-util/web"
 
 func translateForProxy(s string) string {
 	return path.Join(proxyRoot, removeIfStartsWith(s, jailRoot))
@@ -42,23 +44,25 @@ func marshal(v interface{}) string {
 }
 
 // Serves an index.html file for a directory or sends the requested file.
-func processRequest(rsp http.ResponseWriter, req *http.Request) {
+func processRequest(rsp http.ResponseWriter, req *http.Request) *web.Error {
 	// proxy sends us absolute path URLs
 	u, err := url.Parse(req.RequestURI)
 	if err != nil {
-		log.Fatal(err)
+		return web.AsError(err, 500)
 	}
 
 	if (jplayerPath != "") && strings.HasPrefix(u.Path, jplayerUrl) {
 		// URL is under the jPlayer path:
 		localPath := path.Join(jplayerPath, removeIfStartsWith(u.Path, jplayerUrl))
 		http.ServeFile(rsp, req, localPath)
-		return
+		return nil
 	} else if strings.HasPrefix(u.Path, proxyRoot) {
 		// URL is under the proxy path:
 		processProxiedRequest(rsp, req, u)
-		return
+		return nil
 	}
+
+	return nil
 }
 
 func processProxiedRequest(rsp http.ResponseWriter, req *http.Request, u *url.URL) {

@@ -2,7 +2,9 @@
 package main
 
 import (
+	"mime"
 	"os"
+	"path"
 )
 
 // For directory entry sorting:
@@ -88,4 +90,36 @@ func (s BySize) Less(i, j int) bool {
 	} else {
 		return s.Entries[i].Size() > s.Entries[j].Size()
 	}
+}
+
+func followSymlink(localPath string, dfi os.FileInfo) os.FileInfo {
+	// Check symlink:
+	if (dfi.Mode() & os.ModeSymlink) != 0 {
+
+		dfiPath := path.Join(localPath, dfi.Name())
+		if targetPath, err := os.Readlink(dfiPath); err == nil {
+			// Find the absolute path of the symlink's target:
+			if !path.IsAbs(targetPath) {
+				targetPath = path.Join(localPath, targetPath)
+			}
+			if tdfi, err := os.Stat(targetPath); err == nil {
+				// Change to the target so we get its properties instead of the symlink's:
+				return tdfi
+			}
+		}
+	}
+
+	return dfi
+}
+
+func isMP3(filename string) bool {
+	ext := path.Ext(filename)
+	mt := mime.TypeByExtension(ext)
+	if mt != "audio/mpeg" {
+		return false
+	}
+	if ext != ".mp3" {
+		return false
+	}
+	return true
 }
