@@ -4,8 +4,10 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
+	"html/template"
 	"mime"
 	"net/http"
 	"net/url"
@@ -17,6 +19,8 @@ import (
 
 //import "github.com/JamesDunne/go-util/base"
 import "github.com/JamesDunne/go-util/web"
+
+var uiTmpl *template.Template
 
 func translateForProxy(s string) string {
 	return path.Join(proxyRoot, removeIfStartsWith(s, jailRoot))
@@ -58,14 +62,13 @@ func processRequest(rsp http.ResponseWriter, req *http.Request) *web.Error {
 		return nil
 	} else if strings.HasPrefix(u.Path, proxyRoot) {
 		// URL is under the proxy path:
-		processProxiedRequest(rsp, req, u)
-		return nil
+		return processProxiedRequest(rsp, req, u)
 	}
 
 	return nil
 }
 
-func processProxiedRequest(rsp http.ResponseWriter, req *http.Request, u *url.URL) {
+func processProxiedRequest(rsp http.ResponseWriter, req *http.Request, u *url.URL) *web.Error {
 	relPath := removeIfStartsWith(u.Path, proxyRoot)
 	localPath := path.Join(jailRoot, relPath)
 
@@ -77,28 +80,25 @@ func processProxiedRequest(rsp http.ResponseWriter, req *http.Request, u *url.UR
 		// Check if file is a symlink and do 302 redirect:
 		linkDest, err := os.Readlink(localPath)
 		if err != nil {
-			doError(req, rsp, err.Error(), http.StatusBadRequest)
-			return
+			return web.AsError(err, http.StatusBadRequest)
 		}
 
 		// NOTE(jsd): Problem here for links outside the jail folder.
 		if path.IsAbs(linkDest) && !strings.HasPrefix(linkDest, jailRoot) {
-			doError(req, rsp, "Symlink points outside of jail", http.StatusBadRequest)
-			return
+			return web.AsError(errors.New("Symlink points outside of jail"), http.StatusBadRequest)
 		}
 
 		linkDest = path.Join(localDir, linkDest)
 		tp := translateForProxy(linkDest)
 
 		doRedirect(req, rsp, tp, http.StatusFound)
-		return
+		return nil
 	}
 
 	// Regular stat
 	fi, err = os.Stat(localPath)
 	if err != nil {
-		doError(req, rsp, err.Error(), http.StatusNotFound)
-		return
+		return web.AsError(err, http.StatusNotFound)
 	}
 
 	// Serve the file if it is regular:
@@ -119,7 +119,7 @@ func processProxiedRequest(rsp http.ResponseWriter, req *http.Request, u *url.UR
 			http.ServeFile(rsp, req, localPath)
 		}
 
-		return
+		return nil
 	}
 
 	// Generate an index.html for directories:
@@ -134,21 +134,23 @@ func processProxiedRequest(rsp http.ResponseWriter, req *http.Request, u *url.UR
 				//case "tar":
 				//	downloadTar(rsp, req, u, &fi, localPath)
 			}
-			return
+			return nil
 		}
 
-		generateIndexHtml(rsp, req, u)
-		return
+		return generateIndexHtml(rsp, req, u)
 	}
+
+	return nil
 }
 
 type IndexTemplateFile struct {
-	Href    string
-	Name    string
-	IsAudio bool
+	Href     string
+	Name     string
+	NameOnly string
+	IsAudio  bool
 
 	Date              string
-	SizeHumanReadable string
+	SizeHumanReadable template.HTML
 	MimeType          string
 }
 
@@ -169,7 +171,7 @@ type IndexTemplate struct {
 	AudioFiles []*IndexTemplateFile
 }
 
-func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) {
+func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *web.Error {
 	// Build index.html
 	relPath := removeIfStartsWith(u.Path, proxyRoot)
 
@@ -231,29 +233,14 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) {
 	// Open the directory to read its contents:
 	f, err := os.Open(localPath)
 	if err != nil {
-		doError(req, rsp, err.Error(), http.StatusInternalServerError)
-		return
+		return web.AsError(err, http.StatusInternalServerError)
 	}
 	defer f.Close()
 
 	// Read the directory entries:
 	fis, err := f.Readdir(0)
 	if err != nil {
-		doError(req, rsp, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Check if there are MP3s in this directory:
-	hasMP3s := false
-	if useJPlayer {
-		for _, dfi := range fis {
-			dfi = followSymlink(localPath, dfi)
-			if !isMP3(dfi.Name()) {
-				continue
-			}
-			hasMP3s = true
-			break
-		}
+		return web.AsError(err, http.StatusInternalServerError)
 	}
 
 	// Sort the entries by the desired mode:
@@ -268,190 +255,27 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) {
 		sort.Sort(BySize{fis, sortDir})
 	}
 
-	// TODO: check Accepts header to reply accordingly (i.e. add JSON support)
+	files := make([]*IndexTemplateFile, 0, len(fis))
+	audioFiles := make([]*IndexTemplateFile, 0, len(fis))
 
-	pathHtml := html.EscapeString(pathLink)
-
-	rsp.Header().Add("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(rsp, `<!DOCTYPE html>
-
-<html>
-<head>
-  <title>%s</title>
-  <style type="text/css">
-a, a:active {text-decoration: none; color: blue;}
-a:visited {color: #48468F;}
-a:hover, a:focus {text-decoration: underline; color: red;}
-body {background-color: #F5F5F5;}
-h2 {margin-bottom: 12px;}
-table {margin-left: 12px;}
-th, td { font: 90%% monospace; text-align: left;}
-th { font-weight: bold; padding-right: 14px; padding-bottom: 3px;}
-td {padding-right: 14px;}
-td.n, th.n {white-space: nowrap;}
-td.m, th.m {white-space: nowrap;}
-td.s, th.s {white-space: nowrap; text-align: right;}
-div.list { background-color: white; border-top: 1px solid #646464; border-bottom: 1px solid #646464; padding-top: 10px; padding-bottom: 14px;}
-div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
-  </style>
-`, pathHtml)
-
-	if hasMP3s {
-		fmt.Fprintf(rsp, `
-  <link href="%[1]s/jplayer.blue.monday.css" rel="stylesheet" type="text/css" />
-  <script type="text/javascript" src="//code.jquery.com/jquery-1.11.0.min.js"></script>
-  <script type="text/javascript" src="%[1]s/jquery.jplayer.min.js"></script>
-  <script type="text/javascript" src="%[1]s/jplayer.playlist.min.js"></script>
-  <script type="text/javascript">
-    $(function() {
-      new jPlayerPlaylist({ jPlayer: "#jplayer" }, [
-`, jplayerUrl)
-
-		// Generate jPlayer playlist:
-		first := true
-		for _, dfi := range fis {
-			name := dfi.Name()
-			if name[0] == '.' {
-				continue
-			}
-
-			dfi = followSymlink(localPath, dfi)
-
-			dfiPath := path.Join(localPath, name)
-			href := translateForProxy(dfiPath)
-
-			if dfi.IsDir() {
-				continue
-			}
-
-			if !isMP3(name) {
-				continue
-			}
-
-			if !first {
-				fmt.Fprintf(rsp, ", ")
-			} else {
-				fmt.Fprintf(rsp, "  ")
-			}
-
-			ext := path.Ext(name)
-			onlyname := name
-			if ext != "" {
-				onlyname = name[0 : len(name)-len(ext)]
-			}
-
-			fmt.Fprintf(rsp, "{ title: %s, mp3: %s }\n",
-				marshal(onlyname),
-				marshal(href),
-			)
-			first = false
-		}
-
-		// End playlist:
-		fmt.Fprintf(rsp, `
-      ], {
-        swfPath: "/js",
-		supplied: "mp3",
-		wmode: "window"
-      });
-
-	});
-  </script>
-`)
-	}
-
-	fmt.Fprintf(rsp, `
-</head>`)
-
-	fmt.Fprintf(rsp, `
-<body>
-  <h2>Index of %s</h2>`, pathHtml)
-
-	if hasMP3s {
-		fmt.Fprintf(rsp, `
-  <div id="jplayer" class="jp-jplayer"></div>
-
-  <div id="jp_container_1" class="jp-audio" style="float: left; margin-right:12px;">
-    <div class="jp-type-playlist">
-        <div class="jp-gui jp-interface">
-            <ul class="jp-controls">
-                <li><a href="javascript:;" class="jp-previous" tabindex="1">previous</a></li>
-                <li><a href="javascript:;" class="jp-play" tabindex="1">play</a></li>
-                <li><a href="javascript:;" class="jp-pause" tabindex="1">pause</a></li>
-                <li><a href="javascript:;" class="jp-next" tabindex="1">next</a></li>
-                <li><a href="javascript:;" class="jp-stop" tabindex="1">stop</a></li>
-                <li><a href="javascript:;" class="jp-mute" tabindex="1" title="mute">mute</a></li>
-                <li><a href="javascript:;" class="jp-unmute" tabindex="1" title="unmute">unmute</a></li>
-                <li><a href="javascript:;" class="jp-volume-max" tabindex="1" title="max volume">max volume</a></li>
-            </ul>
-            <div class="jp-progress">
-                <div class="jp-seek-bar">
-                    <div class="jp-play-bar"></div>
-                </div>
-            </div>
-            <div class="jp-volume-bar">
-                <div class="jp-volume-bar-value"></div>
-            </div>
-            <div class="jp-time-holder">
-                <div class="jp-current-time"></div>
-                <div class="jp-duration"></div>
-            </div>
-            <ul class="jp-toggles">
-                <li><a href="javascript:;" class="jp-shuffle" tabindex="1" title="shuffle">shuffle</a></li>
-                <li><a href="javascript:;" class="jp-shuffle-off" tabindex="1" title="shuffle off">shuffle off</a></li>
-                <li><a href="javascript:;" class="jp-repeat" tabindex="1" title="repeat">repeat</a></li>
-                <li><a href="javascript:;" class="jp-repeat-off" tabindex="1" title="repeat off">repeat off</a></li>
-            </ul>
-        </div>
-        <div class="jp-playlist">
-            <ul>
-                <li></li>
-            </ul>
-        </div>
-        <div class="jp-no-solution">
-            <span>Update Required</span>
-            To play the media you will need to either update your browser to a recent version or update your <a href="http://get.adobe.com/flashplayer/" target="_blank">Flash plugin</a>.
-        </div>
-    </div>
-  </div>
-`)
-	}
-
-	fmt.Fprintf(rsp, `
-  <div class="list" style="overflow: auto">
-    <table cellpadding="0" cellspacing="0" summary="Directory Listing">
-      <thead>
-        <tr>
-          <th class="n"><a href="%s?sort=%s">Name</a></th>
-          <th class="m"><a href="%s?sort=%s">Last Modified</a></th>
-          <th class="s"><a href="%s?sort=%s">Size</a></th>
-          <th class="t">Type</th>
-        </tr>
-      </thead>
-      <tbody>`, pathHtml, nameSort, pathHtml, dateSort, pathHtml, sizeSort)
-
-	// Add the Parent Directory link if we're above the jail root:
-	if strings.HasPrefix(baseDir, jailRoot) {
-		hrefParent := translateForProxy(baseDir) + "/"
-		fmt.Fprintf(rsp, `
-        <tr>
-          <td class="n"><a href="%s">../</a></td>
-          <td class="m"></td>
-          <td class="s"></td>
-          <td class="t">Directory</td>
-        </tr>`, hrefParent)
-	}
-
+	// Check if there are MP3s in this directory:
+	hasMP3s := false
 	for _, dfi := range fis {
 		name := dfi.Name()
 		if name[0] == '.' {
 			continue
 		}
 
-		dfiPath := path.Join(localPath, name)
 		dfi = followSymlink(localPath, dfi)
 
+		dfiPath := path.Join(localPath, name)
 		href := translateForProxy(dfiPath)
+
+		ext := path.Ext(name)
+		onlyname := name
+		if ext != "" {
+			onlyname = name[0 : len(name)-len(ext)]
+		}
 		mt := mime.TypeByExtension(path.Ext(dfi.Name()))
 
 		sizeText := ""
@@ -472,28 +296,49 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
 			}
 		}
 
-		fmt.Fprintf(rsp, `
-        <tr>
-          <td class="n"><a href="%s">%s</a></td>
-          <td class="m">%s</td>
-          <td class="s">%s</td>
-          <td class="t">%s</td>
-        </tr>`,
-			html.EscapeString(href),
-			html.EscapeString(name),
-			html.EscapeString(dfi.ModTime().Format("2006-01-02 15:04:05 -0700 MST")),
-			strings.Replace(html.EscapeString(sizeText), " ", "&nbsp;", -1),
-			html.EscapeString(mt),
-		)
+		file := &IndexTemplateFile{
+			Href:              href,
+			Name:              name,
+			NameOnly:          onlyname,
+			Date:              dfi.ModTime().Format("2006-01-02 15:04:05 -0700 MST"),
+			SizeHumanReadable: template.HTML(strings.Replace(html.EscapeString(sizeText), " ", "&nbsp;", -1)),
+			MimeType:          mt,
+		}
+
+		files = append(files, file)
+		if !dfi.IsDir() && isMP3(dfi.Name()) {
+			hasMP3s = true
+			file.IsAudio = true
+			audioFiles = append(audioFiles, file)
+		}
 	}
 
-	fmt.Fprintf(rsp, `
-      </tbody>
-    </table>
-  </div>
-</body>
-</html>`)
+	// TODO: determine how to handle this; in template or in code?
+	if !useJPlayer {
+		hasMP3s = false
+	}
 
-	doOK(req, localPath, http.StatusOK)
-	return
+	templateData := &IndexTemplate{
+		JplayerUrl: jplayerUrl,
+		Path:       pathLink,
+		HasAudio:   hasMP3s,
+		SortName:   nameSort,
+		SortDate:   dateSort,
+		SortSize:   sizeSort,
+		Files:      files,
+		AudioFiles: audioFiles,
+
+		HasParent:  strings.HasPrefix(baseDir, jailRoot),
+		ParentHref: translateForProxy(baseDir) + "/",
+	}
+
+	// TODO: check Accepts header to reply accordingly (i.e. add JSON support)
+
+	// Render index template:
+	rsp.Header().Set("Content-Type", "text/html; charset=utf-8")
+	rsp.WriteHeader(200)
+	if werr := web.AsError(uiTmpl.ExecuteTemplate(rsp, "index", templateData), http.StatusInternalServerError); werr != nil {
+		return werr.AsHTML()
+	}
+	return nil
 }

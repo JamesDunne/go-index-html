@@ -15,6 +15,8 @@ var proxyRoot, jailRoot, accelRedirect string
 var jplayerUrl, jplayerPath string
 var useJPlayer bool
 
+var html_path string
+
 func removeIfStartsWith(s, start string) string {
 	if !strings.HasPrefix(s, start) {
 		return s
@@ -23,6 +25,7 @@ func removeIfStartsWith(s, start string) string {
 }
 
 func main() {
+	flag.StringVar(&html_path, "html", "./html", "local path to html templates")
 	flag.StringVar(&proxyRoot, "p", "/", "root of web requests to process")
 	flag.StringVar(&jailRoot, "r", ".", "local filesystem path to bind to web request root path")
 	flag.StringVar(&accelRedirect, "xa", "", "Root of X-Accel-Redirect paths to use)")
@@ -38,6 +41,14 @@ func main() {
 
 	listen_addr, err := base.ParseListenable(*fl_listen_uri)
 	base.PanicIf(err)
+
+	// Watch the html templates for changes and reload them:
+	_, cleanup, err := web.WatchTemplates("ui", html_path, "*.html", nil, &uiTmpl)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer cleanup()
 
 	// Start the server:
 	_, err = base.ServeMain(listen_addr, func(l net.Listener) error {
