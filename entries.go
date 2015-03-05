@@ -112,14 +112,27 @@ func followSymlink(localPath string, dfi os.FileInfo) os.FileInfo {
 	return dfi
 }
 
+var _audio_mimetypes = map[string]bool{
+	"audio/mpeg": true,
+	"audio/ogg":  true,
+}
+
+var _audio_extensions = map[string]bool{
+	".mp3": true,
+	".ogg": true,
+}
+
 func isMP3(filename string) bool {
 	ext := path.Ext(filename)
+	if _, ok := _audio_extensions[ext]; ok {
+		return true
+	}
+
 	mt := mime.TypeByExtension(ext)
-	if mt != "audio/mpeg" {
-		return false
+	// log.Printf("'%s': '%s'\n", ext, mt)
+	if _, ok := _audio_mimetypes[mt]; ok {
+		return true
 	}
-	if ext != ".mp3" {
-		return false
-	}
-	return true
+
+	return false
 }
