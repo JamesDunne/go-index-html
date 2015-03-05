@@ -23,15 +23,8 @@ var proxyRoot, jailRoot, accelRedirect string
 var jplayerUrl, jplayerPath string
 var useJPlayer bool
 
-func startsWith(s, start string) bool {
-	if len(s) < len(start) {
-		return false
-	}
-	return s[0:len(start)] == start
-}
-
 func removeIfStartsWith(s, start string) string {
-	if !startsWith(s, start) {
+	if !strings.HasPrefix(s, start) {
 		return s
 	}
 	return s[len(start):]
@@ -356,7 +349,7 @@ div.foot { font: 90%% monospace; color: #787878; padding-top: 4px;}
       <tbody>`, pathHtml, nameSort, pathHtml, dateSort, pathHtml, sizeSort)
 
 	// Add the Parent Directory link if we're above the jail root:
-	if startsWith(baseDir, jailRoot) {
+	if strings.HasPrefix(baseDir, jailRoot) {
 		hrefParent := translateForProxy(baseDir) + "/"
 		fmt.Fprintf(rsp, `
         <tr>
@@ -440,7 +433,7 @@ func processProxiedRequest(rsp http.ResponseWriter, req *http.Request, u *url.UR
 		}
 
 		// NOTE(jsd): Problem here for links outside the jail folder.
-		if path.IsAbs(linkDest) && !startsWith(linkDest, jailRoot) {
+		if path.IsAbs(linkDest) && !strings.HasPrefix(linkDest, jailRoot) {
 			doError(req, rsp, "Symlink points outside of jail", http.StatusBadRequest)
 			return
 		}
@@ -508,12 +501,12 @@ func processRequest(rsp http.ResponseWriter, req *http.Request) {
 		log.Fatal(err)
 	}
 
-	if (jplayerPath != "") && startsWith(u.Path, jplayerUrl) {
+	if (jplayerPath != "") && strings.HasPrefix(u.Path, jplayerUrl) {
 		// URL is under the jPlayer path:
 		localPath := path.Join(jplayerPath, removeIfStartsWith(u.Path, jplayerUrl))
 		http.ServeFile(rsp, req, localPath)
 		return
-	} else if startsWith(u.Path, proxyRoot) {
+	} else if strings.HasPrefix(u.Path, proxyRoot) {
 		// URL is under the proxy path:
 		processProxiedRequest(rsp, req, u)
 		return
