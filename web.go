@@ -142,6 +142,33 @@ func processProxiedRequest(rsp http.ResponseWriter, req *http.Request, u *url.UR
 	}
 }
 
+type IndexTemplateFile struct {
+	Href    string
+	Name    string
+	IsAudio bool
+
+	Date              string
+	SizeHumanReadable string
+	MimeType          string
+}
+
+type IndexTemplate struct {
+	JplayerUrl string
+
+	Path  string
+	Files []*IndexTemplateFile
+
+	HasParent  bool
+	ParentHref string
+
+	SortName string
+	SortDate string
+	SortSize string
+
+	HasAudio   bool
+	AudioFiles []*IndexTemplateFile
+}
+
 func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) {
 	// Build index.html
 	relPath := removeIfStartsWith(u.Path, proxyRoot)

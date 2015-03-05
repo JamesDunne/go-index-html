@@ -2,7 +2,7 @@
 
 <html>
 <head>
-  <title>%s</title>
+  <title>{{.Path}}</title>
   <style type="text/css">
 a, a:active {text-decoration: none; color: blue;}
 a:visited {color: #48468F;}
@@ -20,37 +20,101 @@ div.list { background-color: white; border-top: 1px solid #646464; border-bottom
 div.foot { font: 90% monospace; color: #787878; padding-top: 4px;}
   </style>
 </head>
-<!-- GENERATE -->
+{{if .HasAudio}}
+  <link href="{{.JplayerUrl}}/jplayer.blue.monday.css" rel="stylesheet" type="text/css" />
+  <script type="text/javascript" src="//code.jquery.com/jquery-1.11.0.min.js"></script>
+  <script type="text/javascript" src="{{.JplayerUrl}}/jquery.jplayer.min.js"></script>
+  <script type="text/javascript" src="{{.JplayerUrl}}/jplayer.playlist.min.js"></script>
+  <script type="text/javascript">
+    $(function() {
+      new jPlayerPlaylist({ jPlayer: "#jplayer" }, [
+		{{range .AudioFiles}}
+		{ title: {{.Name}}, mp3: {{.Href}} },
+		{{end}}
+      ], {
+        swfPath: "/js",
+		supplied: "mp3",
+		wmode: "window"
+      });
+	});
+  </script>
+{{end}}
 <body>
-  <h2>Index of %s</h2>
-<!-- GENERATE -->
+  <h2>Index of {{.Path}}</h2>
+{{if .HasAudio}}
+  <div id="jplayer" class="jp-jplayer"></div>
+
+  <div id="jp_container_1" class="jp-audio" style="float: left; margin-right:12px;">
+    <div class="jp-type-playlist">
+        <div class="jp-gui jp-interface">
+            <ul class="jp-controls">
+                <li><a href="javascript:;" class="jp-previous" tabindex="1">previous</a></li>
+                <li><a href="javascript:;" class="jp-play" tabindex="1">play</a></li>
+                <li><a href="javascript:;" class="jp-pause" tabindex="1">pause</a></li>
+                <li><a href="javascript:;" class="jp-next" tabindex="1">next</a></li>
+                <li><a href="javascript:;" class="jp-stop" tabindex="1">stop</a></li>
+                <li><a href="javascript:;" class="jp-mute" tabindex="1" title="mute">mute</a></li>
+                <li><a href="javascript:;" class="jp-unmute" tabindex="1" title="unmute">unmute</a></li>
+                <li><a href="javascript:;" class="jp-volume-max" tabindex="1" title="max volume">max volume</a></li>
+            </ul>
+            <div class="jp-progress">
+                <div class="jp-seek-bar">
+                    <div class="jp-play-bar"></div>
+                </div>
+            </div>
+            <div class="jp-volume-bar">
+                <div class="jp-volume-bar-value"></div>
+            </div>
+            <div class="jp-time-holder">
+                <div class="jp-current-time"></div>
+                <div class="jp-duration"></div>
+            </div>
+            <ul class="jp-toggles">
+                <li><a href="javascript:;" class="jp-shuffle" tabindex="1" title="shuffle">shuffle</a></li>
+                <li><a href="javascript:;" class="jp-shuffle-off" tabindex="1" title="shuffle off">shuffle off</a></li>
+                <li><a href="javascript:;" class="jp-repeat" tabindex="1" title="repeat">repeat</a></li>
+                <li><a href="javascript:;" class="jp-repeat-off" tabindex="1" title="repeat off">repeat off</a></li>
+            </ul>
+        </div>
+        <div class="jp-playlist">
+            <ul>
+                <li></li>
+            </ul>
+        </div>
+        <div class="jp-no-solution">
+            <span>Update Required</span>
+            To play the media you will need to either update your browser to a recent version or update your <a href="http://get.adobe.com/flashplayer/" target="_blank">Flash plugin</a>.
+        </div>
+    </div>
+  </div>
+{{end}}
   <div class="list" style="overflow: auto">
     <table cellpadding="0" cellspacing="0" summary="Directory Listing">
       <thead>
         <tr>
-          <th class="n"><a href="%s?sort=%s">Name</a></th>
-          <th class="m"><a href="%s?sort=%s">Last Modified</a></th>
-          <th class="s"><a href="%s?sort=%s">Size</a></th>
+          <th class="n"><a href="{{.Path}}?sort={{.SortName}}">Name</a></th>
+          <th class="m"><a href="{{.Path}}?sort={{.SortDate}}">Last Modified</a></th>
+          <th class="s"><a href="{{.Path}}?sort={{.SortSize}}">Size</a></th>
           <th class="t">Type</th>
         </tr>
       </thead>
       <tbody>
-	<!-- if has parent -->
+{{if .HasParent}}
         <tr>
-          <td class="n"><a href="%s">../</a></td>
+          <td class="n"><a href="{{.ParentHref}}">../</a></td>
           <td class="m"></td>
           <td class="s"></td>
           <td class="t">Directory</td>
         </tr>
-	<!-- /gen -->
-	<!-- gen per file -->
+{{end}}
+{{range .Files}}
         <tr>
-          <td class="n"><a href="%s">%s</a></td>
-          <td class="m">%s</td>
-          <td class="s">%s</td>
-          <td class="t">%s</td>
+          <td class="n"><a href="{{.Href}}">{{.Name}}</a></td>
+          <td class="m">{{.Date}}</td>
+          <td class="s">{{.SizeHumanReadable}}</td>
+          <td class="t">{{.MimeType}}</td>
         </tr>
-	<!-- /gen -->
+{{end}}
       </tbody>
     </table>
   </div>
