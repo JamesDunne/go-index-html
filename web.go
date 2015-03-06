@@ -22,6 +22,13 @@ import "github.com/JamesDunne/go-util/web"
 
 var uiTmpl *template.Template
 
+func endSlash(s string) string {
+	if strings.HasSuffix(s, "/") {
+		return s
+	}
+	return s + "/"
+}
+
 func translateForProxy(s string) string {
 	return path.Join(proxyRoot, removeIfStartsWith(s, jailRoot))
 }
@@ -258,9 +265,6 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 	hasMP3s := false
 	for _, dfi := range fis {
 		name := dfi.Name()
-		if name[0] == '.' {
-			continue
-		}
 
 		dfi = followSymlink(localPath, dfi)
 
@@ -300,8 +304,12 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 			SizeHumanReadable: template.HTML(strings.Replace(html.EscapeString(sizeText), " ", "&nbsp;", -1)),
 			MimeType:          mt,
 		}
-
 		files = append(files, file)
+
+		if name[0] == '.' {
+			continue
+		}
+
 		if !dfi.IsDir() && isMP3(dfi.Name()) {
 			hasMP3s = true
 			file.IsAudio = true
@@ -333,7 +341,7 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 		AudioFiles: template.JS(audioFilesJSON),
 
 		HasParent:  strings.HasPrefix(baseDir, jailRoot),
-		ParentHref: translateForProxy(baseDir) + "/",
+		ParentHref: endSlash(translateForProxy(baseDir)),
 	}
 
 	// TODO: check Accepts header to reply accordingly (i.e. add JSON support)

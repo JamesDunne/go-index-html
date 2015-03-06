@@ -39,6 +39,9 @@ func main() {
 		useJPlayer = true
 	}
 
+	jailRoot = base.CanonicalPath(jailRoot)
+	html_path = base.CanonicalPath(html_path)
+
 	listen_addr, err := base.ParseListenable(*fl_listen_uri)
 	base.PanicIf(err)
 

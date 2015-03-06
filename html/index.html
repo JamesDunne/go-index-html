@@ -19,7 +19,6 @@ td.s, th.s {white-space: nowrap; text-align: right;}
 div.list { background-color: white; border-top: 1px solid #646464; border-bottom: 1px solid #646464; padding-top: 10px; padding-bottom: 14px;}
 div.foot { font: 90% monospace; color: #787878; padding-top: 4px;}
   </style>
-</head>
 {{if .HasAudio}}
   <link href="{{$.JplayerUrl}}/jplayer.blue.monday.css" rel="stylesheet" type="text/css" />
   <script type="text/javascript" src="//code.jquery.com/jquery-1.11.0.min.js"></script>
@@ -27,30 +26,32 @@ div.foot { font: 90% monospace; color: #787878; padding-top: 4px;}
   <script type="text/javascript" src="{{$.JplayerUrl}}/jplayer.playlist.min.js"></script>
   <script type="text/javascript">
 $(function() {
-	var jp = $("#jplayer");
-
-	// Set up jplayer:
-	jp.jPlayer({
-		swfPath: "{{$.JplayerUrl}}/",
-		supplied: "mp3",
-		wmode: "window",
-		volume: 1.0
-	});
-
+	// Set up jplayer and playlist:
 	var playlist = new jPlayerPlaylist(
-		{ jPlayer: jp },
-		{{.AudioFiles}}
+		{ jPlayer: "#jplayer" },
+		{{.AudioFiles}},
+		{
+			swfPath: "{{$.JplayerUrl}}/",
+			supplied: "mp3",
+			wmode: "window",
+			volume: 1.0	
+		}
 	);
+	window.playlist = playlist;
+
+	// Select first audio track:
+	playlist.select(0);
 
 	// Click handler for track link:
 	$(".track_play").click(function(e) {
 		e.preventDefault();
 
-		jp.jPlayer("setMedia", {
-			mp3: $(this).attr("href")
-		});
+		// Get playlist index of song:
+		var i = +$(this).attr("data-index");
 
-		jp.jPlayer("play");
+		// Select it and play it:
+		playlist.select(i);
+		playlist.play();
 
 		$(this).blur();
 		return false;
@@ -58,6 +59,7 @@ $(function() {
 });
   </script>
 {{end}}
+</head>
 <body>
   <h2>Index of {{.Path}}</h2>
 {{if .HasAudio}}
@@ -121,10 +123,10 @@ $(function() {
           <td class="t">Directory</td>
         </tr>
 {{end}}
-{{range .Files}}
+{{range $i, $ := .Files}}
 {{  if .IsAudio}}
         <tr>
-          <td class="n"><a href="{{.Href}}">(DL)</a>&nbsp;<a class="track_play" href="{{.Href}}">{{.Name}}</a></td>
+          <td class="n"><a href="{{.Href}}">(DL)</a>&nbsp;<a class="track_play" data-index="{{$i}}" href="{{.Href}}">{{.Name}}</a></td>
           <td class="m">{{.Date}}</td>
           <td class="s">{{.SizeHumanReadable}}</td>
           <td class="t">{{.MimeType}}</td>
