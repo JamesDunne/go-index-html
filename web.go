@@ -264,7 +264,6 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 
 	// Check if there are MP3s in this directory:
 	hasMP3s := false
-	i := 0
 	for _, dfi := range fis {
 		name := dfi.Name()
 
@@ -319,9 +318,7 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 			audioFiles = append(audioFiles, &IndexTemplateAudioFileJSON{
 				Href:  href,
 				Name:  onlyname,
-				Index: i,
 			})
-			i++
 		}
 	}
 
