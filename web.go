@@ -38,15 +38,6 @@ func doRedirect(req *http.Request, rsp http.ResponseWriter, url string, code int
 func doOK(req *http.Request, msg string, code int) {
 }
 
-// Marshal an object to JSON or panic.
-func marshal(v interface{}) string {
-	b, err := json.Marshal(v)
-	if err != nil {
-		panic(err)
-	}
-	return string(b)
-}
-
 // Serves an index.html file for a directory or sends the requested file.
 func processRequest(rsp http.ResponseWriter, req *http.Request) *web.Error {
 	// proxy sends us absolute path URLs
@@ -143,6 +134,11 @@ func processProxiedRequest(rsp http.ResponseWriter, req *http.Request, u *url.UR
 	return nil
 }
 
+type IndexTemplateAudioFileJSON struct {
+	Href string `json:"mp3"`
+	Name string `json:"title"`
+}
+
 type IndexTemplateFile struct {
 	Href     string
 	Name     string
@@ -168,7 +164,7 @@ type IndexTemplate struct {
 	SortSize string
 
 	HasAudio   bool
-	AudioFiles []*IndexTemplateFile
+	AudioFiles template.JS
 }
 
 func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *web.Error {
@@ -256,7 +252,7 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 	}
 
 	files := make([]*IndexTemplateFile, 0, len(fis))
-	audioFiles := make([]*IndexTemplateFile, 0, len(fis))
+	audioFiles := make([]*IndexTemplateAudioFileJSON, 0, len(fis))
 
 	// Check if there are MP3s in this directory:
 	hasMP3s := false
@@ -309,13 +305,21 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 		if !dfi.IsDir() && isMP3(dfi.Name()) {
 			hasMP3s = true
 			file.IsAudio = true
-			audioFiles = append(audioFiles, file)
+			audioFiles = append(audioFiles, &IndexTemplateAudioFileJSON{
+				Href: href,
+				Name: onlyname,
+			})
 		}
 	}
 
 	// TODO: determine how to handle this; in template or in code?
 	if !useJPlayer {
 		hasMP3s = false
+	}
+
+	audioFilesJSON, err := json.Marshal(audioFiles)
+	if err != nil {
+		return web.AsError(err, http.StatusInternalServerError)
 	}
 
 	templateData := &IndexTemplate{
@@ -326,7 +330,7 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 		SortDate:   dateSort,
 		SortSize:   sizeSort,
 		Files:      files,
-		AudioFiles: audioFiles,
+		AudioFiles: template.JS(audioFilesJSON),
 
 		HasParent:  strings.HasPrefix(baseDir, jailRoot),
 		ParentHref: translateForProxy(baseDir) + "/",

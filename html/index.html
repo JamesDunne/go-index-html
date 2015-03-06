@@ -21,22 +21,41 @@ div.foot { font: 90% monospace; color: #787878; padding-top: 4px;}
   </style>
 </head>
 {{if .HasAudio}}
-  <link href="{{.JplayerUrl}}/jplayer.blue.monday.css" rel="stylesheet" type="text/css" />
+  <link href="{{$.JplayerUrl}}/jplayer.blue.monday.css" rel="stylesheet" type="text/css" />
   <script type="text/javascript" src="//code.jquery.com/jquery-1.11.0.min.js"></script>
-  <script type="text/javascript" src="{{.JplayerUrl}}/jquery.jplayer.min.js"></script>
-  <script type="text/javascript" src="{{.JplayerUrl}}/jplayer.playlist.min.js"></script>
+  <script type="text/javascript" src="{{$.JplayerUrl}}/jquery.jplayer.min.js"></script>
+  <script type="text/javascript" src="{{$.JplayerUrl}}/jplayer.playlist.min.js"></script>
   <script type="text/javascript">
-    $(function() {
-      new jPlayerPlaylist({ jPlayer: "#jplayer" }, [
-		{{range .AudioFiles}}
-		{ title: {{.Name}}, mp3: {{.Href}} },
-		{{end}}
-      ], {
-        swfPath: "/js",
+$(function() {
+	var jp = $("#jplayer");
+
+	// Set up jplayer:
+	jp.jPlayer({
+		swfPath: "{{$.JplayerUrl}}/",
 		supplied: "mp3",
-		wmode: "window"
-      });
+		wmode: "window",
+		volume: 1.0
 	});
+
+	var playlist = new jPlayerPlaylist(
+		{ jPlayer: jp },
+		{{.AudioFiles}}
+	);
+
+	// Click handler for track link:
+	$(".track_play").click(function(e) {
+		e.preventDefault();
+
+		jp.jPlayer("setMedia", {
+			mp3: $(this).attr("href")
+		});
+
+		jp.jPlayer("play");
+
+		$(this).blur();
+		return false;
+	});
+});
   </script>
 {{end}}
 <body>
@@ -76,11 +95,6 @@ div.foot { font: 90% monospace; color: #787878; padding-top: 4px;}
                 <li><a href="javascript:;" class="jp-repeat-off" tabindex="1" title="repeat off">repeat off</a></li>
             </ul>
         </div>
-        <div class="jp-playlist">
-            <ul>
-                <li></li>
-            </ul>
-        </div>
         <div class="jp-no-solution">
             <span>Update Required</span>
             To play the media you will need to either update your browser to a recent version or update your <a href="http://get.adobe.com/flashplayer/" target="_blank">Flash plugin</a>.
@@ -88,7 +102,7 @@ div.foot { font: 90% monospace; color: #787878; padding-top: 4px;}
     </div>
   </div>
 {{end}}
-  <div class="list" style="overflow: auto">
+  <div class="list" style="clear: both">
     <table cellpadding="0" cellspacing="0" summary="Directory Listing">
       <thead>
         <tr>
@@ -108,12 +122,21 @@ div.foot { font: 90% monospace; color: #787878; padding-top: 4px;}
         </tr>
 {{end}}
 {{range .Files}}
+{{  if .IsAudio}}
+        <tr>
+          <td class="n"><a href="{{.Href}}">(DL)</a>&nbsp;<a class="track_play" href="{{.Href}}">{{.Name}}</a></td>
+          <td class="m">{{.Date}}</td>
+          <td class="s">{{.SizeHumanReadable}}</td>
+          <td class="t">{{.MimeType}}</td>
+        </tr>
+{{  else}}
         <tr>
           <td class="n"><a href="{{.Href}}">{{.Name}}</a></td>
           <td class="m">{{.Date}}</td>
           <td class="s">{{.SizeHumanReadable}}</td>
           <td class="t">{{.MimeType}}</td>
         </tr>
+{{  end}}
 {{end}}
       </tbody>
     </table>
