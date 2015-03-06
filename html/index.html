@@ -44,8 +44,8 @@ $(function() {
 	$("#jplayer").bind($.jPlayer.event.play, function(e) {
 		var media = e.jPlayer.status.media;
 		var i = +media.index;
-		$(".track_play").css("font-weight", "normal");
-		$($(".track_play")[i]).css("font-weight", "bold");
+		$(".audio_link").css("font-weight", "normal");
+		$($(".audio_link")[i]).css("font-weight", "bold");
 	});
 
 	// There is no "stop" event. This is supremely dumb.
@@ -140,8 +140,8 @@ $(function() {
 {{range .Files}}
 {{  if .IsAudio}}
         <tr>
-          <td><a class="track_play" href="{{.Href}}">&#9654;</a></td>
-          <td class="n"><a href="{{.Href}}">{{.Name}}</a></td>
+          <td><a class="track_play" href="{{.Href}}">[&gt;]</a></td>
+          <td class="n"><a class="audio_link" href="{{.Href}}">{{.Name}}</a></td>
           <td class="s">{{.SizeHumanReadable}}</td>
           <td class="t">{{.MimeType}}</td>
           <td class="m">{{.Date}}</td>
