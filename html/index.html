@@ -8,8 +8,8 @@
 a, a:active {text-decoration: none; color: blue;}
 a:visited {color: #48468F;}
 a:hover, a:focus {text-decoration: underline; color: red;}
-body {background-color: #F5F5F5;}
-h2 {margin-bottom: 12px;}
+body {background-color: #F5F5F5; margin: 0}
+h2 {margin-bottom: 8px; margin-top: 8px;}
 table {margin-left: 12px;}
 th, td { font: 90% monospace; text-align: left;}
 th { font-weight: bold; padding-right: 14px; padding-bottom: 3px;}
@@ -79,7 +79,7 @@ $(function() {
 {{if .HasAudio}}
   <div id="jplayer" class="jp-jplayer"></div>
 
-  <div id="jp_container_1" class="jp-audio" style="float: left; margin-right:12px;">
+  <div id="jp_container_1" class="jp-audio" style="float: left;">
     <div class="jp-type-playlist">
         <div class="jp-gui jp-interface">
             <ul class="jp-controls">
@@ -105,8 +105,6 @@ $(function() {
                 <div class="jp-duration"></div>
             </div>
             <ul class="jp-toggles">
-                <li><a href="javascript:;" class="jp-shuffle" tabindex="1" title="shuffle">shuffle</a></li>
-                <li><a href="javascript:;" class="jp-shuffle-off" tabindex="1" title="shuffle off">shuffle off</a></li>
                 <li><a href="javascript:;" class="jp-repeat" tabindex="1" title="repeat">repeat</a></li>
                 <li><a href="javascript:;" class="jp-repeat-off" tabindex="1" title="repeat off">repeat off</a></li>
             </ul>

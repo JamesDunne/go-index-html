@@ -30,7 +30,7 @@ div.jp-video {
 	background-color:#F5F5F5;
 }
 div.jp-audio {
-	width:420px;
+	width:360px;
 }
 div.jp-audio-stream {
 	width:182px;
@@ -83,10 +83,10 @@ div.jp-interface {
 }
 
 div.jp-audio div.jp-type-single div.jp-interface {
-	height:80px;
+	height:56px;
 }
 div.jp-audio div.jp-type-playlist div.jp-interface {
-	height:80px;
+	height:56px;
 }
 
 div.jp-audio-stream div.jp-type-single div.jp-interface {
@@ -116,8 +116,8 @@ div.jp-interface ul.jp-controls {
 }
 
 div.jp-audio ul.jp-controls {
-	width: 380px;
-	padding:20px 20px 0 20px;
+	width: 360px;
+	padding:4px 4px 0 4px;
 }
 
 div.jp-audio-stream ul.jp-controls {
@@ -173,7 +173,6 @@ a.jp-stop, a.jp-previous, a.jp-next {
 
 a.jp-stop {
 	background: url("jplayer.blue.monday.jpg") 0 -83px no-repeat;
-	margin-left:10px;
 }
 
 a.jp-stop:hover {
@@ -204,7 +203,7 @@ div.jp-progress {
 }
 div.jp-audio div.jp-progress {
 	position: absolute;
-	top:32px;
+	top:16px;
 	height:15px;
 }
 div.jp-audio div.jp-type-single div.jp-progress {
@@ -212,8 +211,8 @@ div.jp-audio div.jp-type-single div.jp-progress {
 	width:186px;
 }
 div.jp-audio div.jp-type-playlist div.jp-progress {
-	left:166px;
-	width:130px;
+	left:136px;
+	width:120px;
 }
 div.jp-video div.jp-progress {
 	top:0px;
@@ -257,7 +256,7 @@ div.jp-audio div.jp-type-single a.jp-unmute {
 }
 div.jp-audio div.jp-type-playlist a.jp-mute,
 div.jp-audio div.jp-type-playlist a.jp-unmute {
-	margin-left: 154px;
+	margin-left: 134px;
 }
 
 div.jp-audio-stream div.jp-type-single a.jp-mute,
@@ -284,7 +283,7 @@ div.jp-video a.jp-unmute {
 }
 
 div.jp-video a.jp-volume-max {
-	left: 134px;
+	left: 104px;
 }
 
 a.jp-mute {
@@ -316,8 +315,8 @@ div.jp-volume-bar {
 	cursor: pointer;
 }
 div.jp-audio div.jp-volume-bar {
-	top:37px;
-	left:330px;
+	top:21px;
+	left:285px;
 }
 div.jp-audio-stream div.jp-volume-bar {
 	top:37px;
@@ -339,21 +338,21 @@ div.jp-volume-bar-value {
 
 div.jp-audio div.jp-time-holder {
 	position:absolute;
-	top:50px;
+	top:34px;
 }
 div.jp-audio div.jp-type-single div.jp-time-holder {
 	left:110px;
 	width:186px;
 }
 div.jp-audio div.jp-type-playlist div.jp-time-holder {
-	left:166px;
-	width:130px;
+	left:136px;
+	width:120px;
 }
 
 div.jp-current-time,
 div.jp-duration {
 	width:60px;
-	font-size:.64em;
+	font-size:.55em;
 	font-style:oblique;
 }
 div.jp-current-time {
@@ -537,8 +536,8 @@ div.jp-audio .jp-type-playlist ul.jp-toggles {
 	width:55px;
 	margin: 0;
 	position: absolute;
-	left: 325px;
-	top: 50px;
+	left: 265px;
+	top: 34px;
 }
 
 div.jp-video ul.jp-toggles {
