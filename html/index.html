@@ -40,13 +40,18 @@ $(function() {
 		}
 	);
 	window.playlist = playlist;
-	
+
 	$("#jplayer").bind($.jPlayer.event.play, function(e) {
 		var media = e.jPlayer.status.media;
 		var i = +media.index;
 		$(".track_play").css("font-weight", "normal");
 		$($(".track_play")[i]).css("font-weight", "bold");
 	});
+
+	// There is no "stop" event. This is supremely dumb.
+	//$("#jplayer").bind($.jPlayer.event.ended, function(e) {
+	//	$(".track_play").css("font-weight", "normal");
+	//});
 
 	// Select first audio track:
 	playlist.select(0);
