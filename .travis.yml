@@ -6,5 +6,4 @@ go:
 sudo: false
 
 install:
-  - go get github.com/JamesDunne/go-util/base
-  - go get github.com/JamesDunne/go-util/web
+  - go get github.com/JamesDunne/go-util/base github.com/JamesDunne/go-util/web
