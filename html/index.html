@@ -93,6 +93,16 @@ $(function() {
 		jp.jPlayer("play", start_time||0);
 	}
 
+	$("#getlink").click(function(e) {
+		e.preventDefault();
+		var jpData = jp.data('jPlayer');
+		var time = jpData.status.currentTime;
+		var f = filename(jpData.status.media.mp3);
+		var url = window.location.origin + window.location.pathname + '#f=' + f + '&t=' + time;
+		window.prompt("Copy to clipboard, CTRL-C, enter.", url);
+		return false;
+	});
+
 	// Embolden the song name on play event:
 	jp.bind($.jPlayer.event.play, function(e) {
 		var media = e.jPlayer.status.media;
@@ -160,6 +170,7 @@ $(function() {
         </div>
     </div>
   </div>
+  &nbsp;<a id="getlink" href="#">copy link</a>
 {{end}}
   <div class="list" style="clear: both">
     <table cellpadding="0" cellspacing="0" summary="Directory Listing">
