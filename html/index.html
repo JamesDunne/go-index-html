@@ -27,11 +27,30 @@ div.foot { font: 90% monospace; color: #787878; padding-top: 4px;}
   <script type="text/javascript" src="{{$.JplayerUrl}}/jquery.jplayer.min.js"></script>
   <script type="text/javascript" src="{{$.JplayerUrl}}/jplayer.playlist.min.js"></script>
   <script type="text/javascript">
+function decodeQuery(query) {
+    var match,
+        pl     = /\+/g,  // Regex for replacing addition symbol with a space
+        search = /([^&=]+)=?([^&]*)/g,
+        decode = function (s) { return decodeURIComponent(s.replace(pl, " ")); };
+
+	urlParams = {};
+	while (match = search.exec(query))
+		urlParams[decode(match[1])] = decode(match[2]);
+	return urlParams;
+}
+
+function filename(path) {
+	var parts = path.split('/');
+	return parts[parts.length-1];
+}
+
+var medialist = {{.AudioFiles}};
+
 $(function() {
 	// Set up jplayer and playlist:
 	var playlist = new jPlayerPlaylist(
 		{ jPlayer: "#jplayer" },
-		{{.AudioFiles}},
+		medialist,
 		{
 			swfPath: "{{$.JplayerUrl}}/",
 			supplied: "mp3",
@@ -41,20 +60,46 @@ $(function() {
 	);
 	window.playlist = playlist;
 
-	$("#jplayer").bind($.jPlayer.event.play, function(e) {
+	var jp = $("#jplayer");
+
+	// Auto-select a file and seek to position:
+	var selected_index = 0;
+	var start_time = 0;
+	var auto_start = false;
+
+	var hash = window.location.hash;
+	if (hash != undefined) {
+		hash = hash.slice(1);
+		var query = decodeQuery(hash);
+		if ("f" in query) {
+			for (i = 0; i < medialist.length; i++) {
+				if (filename(medialist[i].mp3) == query["f"]) {
+					selected_index = i;
+					auto_start = true;
+					break;
+				}
+			}
+		}
+		if ("t" in query) {
+			start_time = parseFloat(query["t"]);
+		}
+	}
+
+	// Select audio track:
+	playlist.select(selected_index);
+	if (auto_start) {
+		playlist.play();
+		// Seek the playhead to the requested start time (seconds):
+		jp.jPlayer("play", start_time||0);
+	}
+
+	// Embolden the song name on play event:
+	jp.bind($.jPlayer.event.play, function(e) {
 		var media = e.jPlayer.status.media;
 		var i = +media.index;
 		$(".audio_link").css("font-weight", "normal");
 		$($(".audio_link")[i]).css("font-weight", "bold");
 	});
-
-	// There is no "stop" event. This is supremely dumb.
-	//$("#jplayer").bind($.jPlayer.event.ended, function(e) {
-	//	$(".track_play").css("font-weight", "normal");
-	//});
-
-	// Select first audio track:
-	playlist.select(0);
 
 	// Click handler for track link:
 	$(".track_play").click(function(e) {
