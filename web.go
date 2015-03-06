@@ -268,6 +268,11 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 	for _, dfi := range fis {
 		name := dfi.Name()
 
+		// No hidden files:
+		if name[0] == '.' {
+			continue
+		}
+
 		dfi = followSymlink(localPath, dfi)
 
 		dfiPath := path.Join(localPath, name)
@@ -307,10 +312,6 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 			MimeType:          mt,
 		}
 		files = append(files, file)
-
-		if name[0] == '.' {
-			continue
-		}
 
 		if !dfi.IsDir() && isMP3(dfi.Name()) {
 			hasMP3s = true
