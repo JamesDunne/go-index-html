@@ -141,15 +141,15 @@ $(function() {
 {{  if $.HasAudio}}
 {{    if .IsAudio}}
         <tr>
-          <td><a href="{{.Href}}">[d/l]</a></td>
-          <td class="n"><a class="track_play audio_link" href="{{.Href}}">{{.Name}}</a></td>
+          <td><a href="{{.Href}}" title="download">[d/l]</a></td>
+          <td class="n"><a class="track_play audio_link" href="{{.Href}}" title="play">{{.Name}}</a></td>
           <td class="s">{{.SizeHumanReadable}}</td>
           <td class="t">{{.MimeType}}</td>
           <td class="m">{{.Date}}</td>
         </tr>
 {{    else}}
         <tr>
-          <td><a href="{{.Href}}">[d/l]</td>
+          <td><a href="{{.Href}}" title="download">[d/l]</td>
           <td class="n">{{.Name}}</td>
           <td class="s">{{.SizeHumanReadable}}</td>
           <td class="t">{{.MimeType}}</td>
@@ -159,7 +159,7 @@ $(function() {
 {{  else}}
         <tr>
           <td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
-          <td class="n"><a href="{{.Href}}">{{.Name}}</a></td>
+          <td class="n"><a href="{{.Href}}" title="download">{{.Name}}</a></td>
           <td class="s">{{.SizeHumanReadable}}</td>
           <td class="t">{{.MimeType}}</td>
           <td class="m">{{.Date}}</td>
