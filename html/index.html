@@ -3,6 +3,7 @@
 <html>
 <head>
   <title>{{.Path}}</title>
+  <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
   <style type="text/css">
 a, a:active {text-decoration: none; color: blue;}
 a:visited {color: #48468F;}
@@ -16,6 +17,7 @@ td {padding-right: 14px;}
 td.n, th.n {white-space: nowrap;}
 td.m, th.m {white-space: nowrap;}
 td.s, th.s {white-space: nowrap; text-align: right;}
+td.t, th.t {white-space: nowrap;}
 div.list { background-color: white; border-top: 1px solid #646464; border-bottom: 1px solid #646464; padding-top: 10px; padding-bottom: 14px;}
 div.foot { font: 90% monospace; color: #787878; padding-top: 4px;}
   </style>
@@ -116,34 +118,34 @@ $(function() {
       <thead>
         <tr>
           <th class="n"><a href="{{.Path}}?sort={{.SortName}}">Name</a></th>
-          <th class="m"><a href="{{.Path}}?sort={{.SortDate}}">Last Modified</a></th>
           <th class="s"><a href="{{.Path}}?sort={{.SortSize}}">Size</a></th>
           <th class="t">Type</th>
+          <th class="m"><a href="{{.Path}}?sort={{.SortDate}}">Last Modified</a></th>
         </tr>
       </thead>
       <tbody>
 {{if .HasParent}}
         <tr>
           <td class="n"><a href="{{.ParentHref}}">../</a></td>
-          <td class="m"></td>
           <td class="s"></td>
           <td class="t">Directory</td>
+          <td class="m"></td>
         </tr>
 {{end}}
 {{range $i, $ := .Files}}
 {{  if .IsAudio}}
         <tr>
           <td class="n"><a href="{{.Href}}">(DL)</a>&nbsp;<a class="track_play" data-index="{{$i}}" href="{{.Href}}">{{.Name}}</a></td>
-          <td class="m">{{.Date}}</td>
           <td class="s">{{.SizeHumanReadable}}</td>
           <td class="t">{{.MimeType}}</td>
+          <td class="m">{{.Date}}</td>
         </tr>
 {{  else}}
         <tr>
           <td class="n"><a href="{{.Href}}">{{.Name}}</a></td>
-          <td class="m">{{.Date}}</td>
           <td class="s">{{.SizeHumanReadable}}</td>
           <td class="t">{{.MimeType}}</td>
+          <td class="m">{{.Date}}</td>
         </tr>
 {{  end}}
 {{end}}
