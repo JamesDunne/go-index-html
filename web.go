@@ -142,8 +142,9 @@ func processProxiedRequest(rsp http.ResponseWriter, req *http.Request, u *url.UR
 }
 
 type IndexTemplateAudioFileJSON struct {
-	Href string `json:"mp3"`
-	Name string `json:"title"`
+	Href  string `json:"mp3"`
+	Name  string `json:"title"`
+	Index int    `json:"index"`
 }
 
 type IndexTemplateFile struct {
@@ -263,6 +264,7 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 
 	// Check if there are MP3s in this directory:
 	hasMP3s := false
+	i := 0
 	for _, dfi := range fis {
 		name := dfi.Name()
 
@@ -314,9 +316,11 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 			hasMP3s = true
 			file.IsAudio = true
 			audioFiles = append(audioFiles, &IndexTemplateAudioFileJSON{
-				Href: href,
-				Name: onlyname,
+				Href:  href,
+				Name:  onlyname,
+				Index: i,
 			})
+			i++
 		}
 	}
 

@@ -34,10 +34,17 @@ $(function() {
 			swfPath: "{{$.JplayerUrl}}/",
 			supplied: "mp3",
 			wmode: "window",
-			volume: 1.0	
+			volume: 1.0
 		}
 	);
 	window.playlist = playlist;
+	
+	$("#jplayer").bind($.jPlayer.event.play, function(e) {
+		var media = e.jPlayer.status.media;
+		var i = +media.index;
+		$(".track_play").css("font-weight", "normal");
+		$($(".track_play")[i]).css("font-weight", "bold");
+	});
 
 	// Select first audio track:
 	playlist.select(0);
