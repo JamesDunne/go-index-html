@@ -152,6 +152,7 @@ type IndexTemplateFile struct {
 	Name     string
 	NameOnly string
 	IsAudio  bool
+	IsFolder bool
 
 	Date              string
 	SizeHumanReadable template.HTML
@@ -310,6 +311,7 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 			Date:              dfi.ModTime().Format("2006-01-02 15:04:05 -0700 MST"),
 			SizeHumanReadable: template.HTML(strings.Replace(html.EscapeString(sizeText), " ", "&nbsp;", -1)),
 			MimeType:          mt,
+			IsFolder:          dfi.IsDir(),
 		}
 		files = append(files, file)
 

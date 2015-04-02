@@ -205,8 +205,13 @@ $(function() {
         </tr>
 {{    else}}
         <tr>
-          <td><a href="{{.Href}}" title="download">[d/l]</td>
+{{      if .IsFolder}}
+          <td></td>
+          <td class="n"><a href="{{.Href}}">{{.Name}}</a></td>
+{{      else}}
+          <td><a href="{{.Href}}" title="download">[d/l]</a></td>
           <td class="n">{{.Name}}</td>
+{{      end}}
           <td class="s">{{.SizeHumanReadable}}</td>
           <td class="t">{{.MimeType}}</td>
           <td class="m">{{.Date}}</td>

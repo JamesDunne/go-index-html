@@ -113,8 +113,10 @@ func followSymlink(localPath string, dfi os.FileInfo) os.FileInfo {
 }
 
 var _audio_mimetypes = map[string]bool{
-	"audio/mpeg": true,
-	"audio/ogg":  true,
+	"audio/mpeg":  true,
+	"audio/ogg":   true,
+	"audio/wav":   true,
+	"audio/x-wav": true,
 }
 
 var _audio_extensions = map[string]bool{
