@@ -1,0 +1,307 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    font-size: 12pt;
+    font-family: sans-serif;
+}
+
+.mixer {
+    --track-width: 51px;
+    --fader-height: 250px;
+    --fader-width: calc(var(--track-width) - 12px);
+    --thumb-width: 4em;
+    --thumb-height: 2em;
+}
+
+.mixer {
+    background: #16191c;
+    position: relative;
+    display: block;
+    float: left;
+    font-size: 12pt;
+    font-family: sans-serif;
+    user-select: none;
+    touch-action: none;
+}
+
+@media (min-width: 361px) and (min-height: 721px) {
+    .mixer {
+        transform-origin: left top;
+        transform: scale(1.5);
+    }
+}
+
+.mixer audio {
+    width: 360px;
+    display: block;
+}
+
+.mixer .trackstrip {
+    height: calc(var(--fader-height) + 56px);
+    position: relative;
+    display: block;
+    float: left;
+}
+
+.mixer .trackstrip .track {
+    width: var(--track-width);
+    position: relative;
+    float: left;
+    display: block;
+    background: #292c30;
+    height: 100%;
+    -webkit-box-shadow: inset 0 0 5px 0 rgba(26,27,28,.75);
+    -moz-box-shadow: inset 0 0 5px 0 rgba(26,27,28,.75);
+    box-shadow: inset 0 0 5px 0 rgba(26,27,28,.75);
+}
+
+.mixer .trackstrip .track .label {
+    display: block;
+    overflow: hidden;
+    font-size: 10px;
+    height: 1em;
+    width: 100%;
+    float: left;
+    user-select: text;
+    line-height: 1em;
+}
+
+.center {
+    text-align: center;
+}
+
+.right {
+    text-align: right;
+}
+
+.mixer .trackstrip .track .label span {
+    display: block;
+    white-space: nowrap;
+    color: #aaa;
+}
+
+/* FADER */
+.mixer .trackstrip .track .fader {
+    height: var(--fader-width);
+    display: block;
+    float: left;
+    -ms-transform: rotate(270deg);
+    -webkit-transform: rotate(270deg);
+    transform: rotate(270deg);
+    position: absolute;
+    top: calc(var(--fader-height) * 0.5 + 32px); /* 232px */
+    left: calc(var(--fader-height) * -0.5 + var(--fader-width) * 0.5 + 8px); /* -180.2px */
+}
+
+.mixer .trackstrip .track .fader input[type=range] {
+    align-self: center;
+    padding: 0;
+    width: calc(var(--fader-height)); /* 400px */
+    height: 0;
+    background: repeating-linear-gradient(90deg,#3b3e41,#3b3e41 .0625em,transparent .0625em,transparent var(--thumb-height)) 50% .4375em no-repeat border-box,repeating-linear-gradient(90deg,#3b3e41,#3b3e41 .0625em,transparent .0625em,transparent var(--thumb-height)) 50% var(--thumb-height) no-repeat border-box;
+    background-size: calc(var(--fader-height) - 10px) .625em,calc(var(--fader-height) - 10px) .625em,100% 2.25em;
+    font-size: 1em;
+    cursor: pointer;
+}
+
+.mixer .trackstrip .track .fader input[type=range], input[type=range]::-webkit-slider-runnable-track, .mixer .trackstrip .track .fader input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+}
+
+.mixer .trackstrip .track .fader input[type=range]::-webkit-slider-runnable-track {
+    position: relative;
+    width: 13em;
+    height: .1em;
+    border-radius: .1875em;
+    background: #15181b
+}
+
+.mixer .trackstrip .track .fader input[type=range]::-moz-range-track {
+    width: calc(var(--fader-height) - 10px);
+    height: .1em;
+    border-radius: .1875em;
+    background: #15181b
+}
+
+.mixer .trackstrip .track .fader input[type=range]::-ms-track {
+    border: none;
+    width: 13em;
+    height: .1em;
+    border-radius: .1875em;
+    color: transparent;
+    background: #15181b
+}
+
+.mixer .trackstrip .track .fader input[type=range]::-ms-fill-lower {
+    display: none
+}
+
+.mixer .trackstrip .track .fader input[type=range]::-webkit-slider-thumb {
+    font-size: .7em;
+    margin-top: -.9em;
+    border: none;
+    width: var(--thumb-width);
+    height: var(--thumb-height);
+    border-radius: .5em;
+    box-shadow: -.125em 0 .25em #928886,inset -1px 0 1px #fff;
+    background: radial-gradient(#ebe1e0 10%,rgba(235,225,224,.2) 10%,rgba(235,225,224,0) 72%) 50% 50% no-repeat,radial-gradient(at 100% 50%,#e9dfde,#eae1de 71%,transparent 71%) 2.5em 50% no-repeat,linear-gradient(90deg,#e9dfde,#d0c8c6) 100% 50% no-repeat,radial-gradient(at 0 50%,#d0c6c5,#c6baba 71%,transparent 71%) .75em 50% no-repeat,linear-gradient(90deg,#e3d9d8,#d0c6c5) 0 50% no-repeat,linear-gradient(#cdc0c0,#fcf5ef,#fcf5ef,#cdc0c0);
+    background-size: .825em 100%
+}
+
+.mixer .trackstrip .track .fader input[type=range]::-moz-range-thumb {
+    font-size: .7em;
+    border: none;
+    width: var(--thumb-width);
+    height: var(--thumb-height);
+    border-radius: .5em;
+    box-shadow: -.125em 0 .25em #928886,inset -1px 0 1px #fff;
+    background: radial-gradient(#ebe1e0 10%,rgba(235,225,224,.2) 10%,rgba(235,225,224,0) 72%) 50% 50% no-repeat,radial-gradient(at 100% 50%,#e9dfde,#eae1de 71%,transparent 71%) 2.5em 50% no-repeat,linear-gradient(90deg,#e9dfde,#d0c8c6) 100% 50% no-repeat,radial-gradient(at 0 50%,#d0c6c5,#c6baba 71%,transparent 71%) .75em 50% no-repeat,linear-gradient(90deg,#e3d9d8,#d0c6c5) 0 50% no-repeat,linear-gradient(#cdc0c0,#fcf5ef,#fcf5ef,#cdc0c0);
+    background-size: .825em 100%
+}
+
+.mixer .trackstrip .track .fader input[type=range]::-ms-thumb {
+    font-size: .7em;
+    border: none;
+    width: var(--thumb-width);
+    height: var(--thumb-height);
+    border-radius: .5em;
+    box-shadow: -.125em 0 .25em #928886,inset -1px 0 1px #fff;
+    background: radial-gradient(#ebe1e0 10%,rgba(235,225,224,.2) 10%,rgba(235,225,224,0) 72%) 50% 50% no-repeat,radial-gradient(at 100% 50%,#e9dfde,#eae1de 71%,transparent 71%) 2.5em 50% no-repeat,linear-gradient(90deg,#e9dfde,#d0c8c6) 100% 50% no-repeat,radial-gradient(at 0 50%,#d0c6c5,#c6baba 71%,transparent 71%) .75em 50% no-repeat,linear-gradient(90deg,#e3d9d8,#d0c6c5) 0 50% no-repeat,linear-gradient(#cdc0c0,#fcf5ef,#fcf5ef,#cdc0c0);
+    background-size: .825em 100%
+}
+
+.mixer .trackstrip .track .fader input[type=range] /deep/ #track:after, .mixer .trackstrip .track .fader input[type=range] /deep/ #track:before, .mixer .trackstrip .track .fader input[type=range]::-webkit-slider-runnable-track:after, .mixer .trackstrip .track .fader input[type=range]::-webkit-slider-runnable-track:before {
+    position: absolute;
+    font: .75em/8em trebuchet ms,arial,sans-serif
+}
+
+.mixer .trackstrip .track .fader input[type=range] /deep/ #track:before, .mixer .trackstrip .track .fader input[type=range]::-webkit-slider-runnable-track:before {
+    top: 50%;
+    right: 100%;
+    transform: translate(50%,-50%) rotate(90deg) translate(0,32%)
+}
+
+.mixer .trackstrip .track .fader input[type=range] /deep/ #track:after, .mixer .trackstrip .track .fader input[type=range]::-webkit-slider-runnable-track:after {
+    left: 50%;
+    width: 3em;
+    word-spacing: 1em
+}
+
+.mixer .trackstrip .track .fader input[type=range]:nth-of-type(1) /deep/ #track:after, .mixer .trackstrip .track .fader input[type=range]:nth-of-type(1)::-webkit-slider-runnable-track:after {
+    bottom: 100%;
+    transform: translate(-50%,50%) rotate(90deg) translate(-4.375em);
+    text-align: right
+}
+
+.mixer .trackstrip .track .fader input[type=range]:nth-of-type(6) /deep/ #track:after, .mixer .trackstrip .track .fader input[type=range]:nth-of-type(6)::-webkit-slider-runnable-track:after {
+    top: 100%;
+    transform: translate(-50%,-50%) rotate(90deg) translate(4.375em)
+}
+
+.mixer .trackstrip .track .fader input[type=range]:focus {
+    outline: 0
+}
+
+.mixer .trackstrip .track .fader input[type=range]:focus::-webkit-slider-runnable-track {
+    background: #15181b
+}
+
+.mixer .trackstrip .track .fader input[type=range]:focus::-moz-range-track {
+    background: #15181b
+}
+
+.mixer .trackstrip .track .fader input[type=range]:focus::-ms-track {
+    background: #15181b
+}
+
+/* BUTTONS */
+.mixer .trackstrip .track .button-container {
+    margin: 0px 0px 0px calc(0px + var(--fader-width) * 0.5 - 14px);
+}
+
+/* MUTE */
+.mixer .trackstrip .track .mute-button {
+    background-color: #666B73;
+    border-radius: 4px;
+    border: 1px solid #000;
+    overflow: hidden;
+    float: left;
+    font-family: sans-serif;
+    font-size: 10px;
+}
+
+.mixer .trackstrip .track .mute-button label {
+    width: 100%;
+    display: block;
+}
+
+.mixer .trackstrip .track .mute-button label input {
+    display: none;
+    position: absolute;
+    top: -20px;
+}
+
+.mixer .trackstrip .track .mute-button label span {
+    text-align: center;
+    padding: 3px;
+    display: block;
+    width: 12px;
+}
+
+.mixer .trackstrip .track .mute-button input:hover+span {
+    background-color: #efE0E0
+}
+
+.mixer .trackstrip .track .mute-button input:checked+span {
+    background-color: #911;
+    color: #fff
+}
+
+.mixer .trackstrip .track .mute-button input:checked:hover+span {
+    background-color: #c11;
+    color: #fff
+}
+
+/* SOLO */
+.mixer .trackstrip .track .solo-button {
+    background-color: #666B73;
+    border-radius: 4px;
+    border: 1px solid #000;
+    overflow: hidden;
+    float: left;
+    font-family: sans-serif;
+    font-size: 10px;
+    margin-left: 0px;
+}
+
+.mixer .trackstrip .track .solo-button label {
+    width: 100%;
+    display: block;
+}
+
+.mixer .trackstrip .track .solo-button label input {
+    display: none;
+    position: absolute;
+    top: -20px;
+}
+
+.mixer .trackstrip .track .solo-button label span {
+    text-align: center;
+    padding: 3px;
+    display: block;
+    width: 12px;
+}
+
+.mixer .trackstrip .track .solo-button input:hover+span {
+    background-color: #efE0E0
+}
+
+.mixer .trackstrip .track .solo-button input:checked+span {
+    background-color: #191;
+    color: #fff
+}
+
+.mixer .trackstrip .track .solo-button input:checked:hover+span {
+    background-color: #1c1;
+    color: #fff
+}
