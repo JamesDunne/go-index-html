@@ -46,11 +46,10 @@ div.foot { font: 90% monospace; color: #787878; padding-top: 4px;}
         </tr>
 {{end}}
 {{range .Files}}
-{{  if $.HasAudio}}
-{{    if .IsAudio}}
+{{    if .IsMultitrack}}
         <tr>
           <td><a href="{{.Href}}" title="download">[d/l]</a></td>
-          <td class="n"><a class="track_play audio_link" href="{{.Href}}" title="play">{{.Name}}</a></td>
+          <td class="n"><a href="{{.Href}}" onclick="return songPlayClickHandler(event);" title="play">{{.Name}}</a></td>
           <td class="s">{{.SizeHumanReadable}}</td>
           <td class="t">{{.MimeType}}</td>
           <td class="m">{{.Date}}</td>
@@ -69,22 +68,111 @@ div.foot { font: 90% monospace; color: #787878; padding-top: 4px;}
           <td class="m">{{.Date}}</td>
         </tr>
 {{    end}}
-{{  else}}
-        <tr>
-          <td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
-          <td class="n"><a href="{{.Href}}" title="download">{{.Name}}</a></td>
-          <td class="s">{{.SizeHumanReadable}}</td>
-          <td class="t">{{.MimeType}}</td>
-          <td class="m">{{.Date}}</td>
-        </tr>
-{{  end}}
 {{end}}
 	  </tbody>
     </table>
   </div>
-  <script type="text/javascript" src="{{$.MtUrl}}/mixer.js"></script>
-  <script type="text/javascript" src="{{$.MtUrl}}/track.js"></script>
-  <script type="text/javascript" src="{{$.MtUrl}}/mixer-ui.js"></script>
+<div class="mixer">
+    <audio id="mc" controls controlsList="nodownload">
+        <source type="audio/ogg">
+    </audio>
+    <div class="trackstrip"></div>
+</div>
+<template id="trackTemplate">
+    <div class="track" data-track="TRACKNAME">
+        <div class="label">
+            <span class="name center">TRACKNAME</span>
+        </div>
+        <div class="button-container">
+            <div class="mute-button">
+                <label>
+                    <input type="checkbox" value="1">
+                    <span>M</span>
+                </label>
+            </div>
+            <div class="solo-button">
+                <label>
+                    <input type="checkbox" value="1">
+                    <span>S</span>
+                </label>
+            </div>
+        </div>
+        <div class="label">
+            <span class="level right">0.00dB</span>
+        </div>
+        <div class="fader">
+            <input type="range" min="0" max="1.0" step="any" value="0.787">
+        </div>
+    </div>
+</template>
+<script type="text/javascript" src="{{$.MtUrl}}/mixer.js"></script>
+<script type="text/javascript" src="{{$.MtUrl}}/track.js"></script>
+<script type="text/javascript" src="{{$.MtUrl}}/mixer-ui.js"></script>
+<script type="text/javascript">
+    function songPlayClickHandler(e) {
+        e.preventDefault();
+        let href = e.target.getAttribute("href");
+        mcAudio.src = href;
+        mcAudio.play();
+        return false;
+    }
+
+    // Create an AudioContext:
+    let ac = new AudioContext();
+
+    // Create a mixer:
+    let mixer = new Mixer();
+
+    // Embed mix.json:
+    let mix = {{.MultitrackMixJson}};
+
+    // Add default tracks to mixer:
+    mixer.addTracks(mix.tracks);
+
+    // Bind mixer to AudioContext:
+    mixer.createNodes(ac);
+
+    // Initialize mixer UI:
+    new MixerUI(mixer).init();
+
+    // Find our <audio> element:
+    let mcAudio = document.getElementById("mc");
+    let mcSource = ac.createMediaElementSource(mcAudio);
+    mcSource.channelCountMode = "explicit";
+    mcSource.channelInterpretation = "discrete";
+
+    // TODO: would be nice to detect channel count from source.
+    let splitter = ac.createChannelSplitter(8);
+    try {
+        // For older spec implementations:
+        splitter.channelCountMode = "max";
+    } catch (e) {
+        splitter.channelCountMode = "explicit";
+    }
+    splitter.channelInterpretation = "discrete";
+    mcSource.connect(splitter);
+
+    // Split multichannel audio source into stereo/mono tracks:
+    let c = 0;
+    for (let track of mixer.tracks) {
+        // Connect media output to track input:
+        let merger = ac.createChannelMerger(2);
+        merger.channelCountMode = "explicit";
+        merger.channelInterpretation = "discrete";
+
+        if (track.channels == 2) {
+            // Assume stereo, so copy left/right channels independently:
+            splitter.connect(merger, c++, 0);
+            splitter.connect(merger, c++, 1);
+        } else {
+            // Assume mono, so copy single input channel to both output channels:
+            splitter.connect(merger, c, 0);
+            splitter.connect(merger, c, 1);
+            c++;
+        }
+        merger.connect(track.inputNode);
+    }
+</script>
 </body>
 </html>
 {{end}}
