@@ -15,6 +15,9 @@ var proxyRoot, jailRoot, accelRedirect string
 var jplayerUrl, jplayerPath string
 var useJPlayer bool
 
+var mtUrl, mtPath string
+var useMT bool
+
 var html_path string
 
 func removeIfStartsWith(s, start string) string {
@@ -31,12 +34,17 @@ func main() {
 	flag.StringVar(&accelRedirect, "xa", "", "Root of X-Accel-Redirect paths to use)")
 	flag.StringVar(&jplayerUrl, "jp-url", "", `Web path to jPlayer files (e.g. "/js")`)
 	flag.StringVar(&jplayerPath, "jp-path", "", `Local filesystem path to jPlayer files`)
+	flag.StringVar(&mtUrl, "mt-url", "", `Web path to multitrack mixer files (e.g. "/js/mt")`)
+	flag.StringVar(&mtPath, "mt-path", "", `Local filesystem path to multitrack mixer files`)
 
 	fl_listen_uri := flag.String("l", "tcp://0.0.0.0:8080", "listen URI (schemes available are tcp, unix)")
 	flag.Parse()
 
 	if jplayerUrl != "" {
 		useJPlayer = true
+	}
+	if mtUrl != "" {
+		useMT = true
 	}
 
 	jailRoot = base.CanonicalPath(jailRoot)

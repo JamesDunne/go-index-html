@@ -59,6 +59,11 @@ func processRequest(rsp http.ResponseWriter, req *http.Request) *web.Error {
 		localPath := path.Join(jplayerPath, removeIfStartsWith(u.Path, jplayerUrl))
 		http.ServeFile(rsp, req, localPath)
 		return nil
+	} else if (mtPath != "") && strings.HasPrefix(u.Path, mtUrl) {
+		// URL is under the MT path:
+		localPath := path.Join(mtPath, removeIfStartsWith(u.Path, mtUrl))
+		http.ServeFile(rsp, req, localPath)
+		return nil
 	} else if strings.HasPrefix(u.Path, proxyRoot) {
 		// URL is under the proxy path:
 		return processProxiedRequest(rsp, req, u)
@@ -149,11 +154,12 @@ type IndexTemplateAudioFileJSON struct {
 }
 
 type IndexTemplateFile struct {
-	Href     string
-	Name     string
-	NameOnly string
-	IsAudio  bool
-	IsFolder bool
+	Href         string
+	Name         string
+	NameOnly     string
+	IsAudio      bool
+	IsMultitrack bool
+	IsFolder     bool
 
 	Date              string
 	SizeHumanReadable template.HTML
@@ -162,6 +168,7 @@ type IndexTemplateFile struct {
 
 type IndexTemplate struct {
 	JplayerUrl string
+	MtUrl      string
 
 	Path  string
 	Files []*IndexTemplateFile
@@ -341,6 +348,7 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 				})
 				i++
 			} else if isMultitrack(dfi.Name()) {
+				file.IsMultitrack = true
 				multitrackFiles = append(multitrackFiles, &IndexTemplateAudioFileJSON{
 					Href: href,
 					Name: onlyname,
@@ -349,9 +357,12 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 		}
 	}
 
-	// TODO: determine how to handle this; in template or in code?
+	// Disable extra features if we don't have the supporting code for them:
 	if !useJPlayer {
 		hasMP3s = false
+	}
+	if !useMT {
+		hasMultitrack = false
 	}
 
 	audioFilesJSON, err := json.Marshal(audioFiles)
@@ -369,29 +380,33 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 	}
 
 	templateData := &IndexTemplate{
-		JplayerUrl: jplayerUrl,
 		Path:       pathLink,
+		Files:      files,
 		SortName:   nameSort,
 		SortDate:   dateSort,
 		SortSize:   sizeSort,
-		Files:      files,
+		HasParent:  strings.HasPrefix(baseDir, jailRoot),
+		ParentHref: endSlash(translateForProxy(baseDir)),
 
+		JplayerUrl: jplayerUrl,
 		HasAudio:   hasMP3s,
 		AudioFiles: template.JS(audioFilesJSON),
 
+		MtUrl:             mtUrl,
 		HasMultitrack:     hasMultitrack,
 		MultitrackMixJson: template.JS(multitrackMixJson),
-
-		HasParent:  strings.HasPrefix(baseDir, jailRoot),
-		ParentHref: endSlash(translateForProxy(baseDir)),
 	}
 
 	// TODO: check Accepts header to reply accordingly (i.e. add JSON support)
+	templateName := "index"
+	if hasMultitrack {
+		templateName = "index-mt"
+	}
 
 	// Render index template:
 	rsp.Header().Set("Content-Type", "text/html; charset=utf-8")
 	rsp.WriteHeader(200)
-	if werr := web.AsError(uiTmpl.ExecuteTemplate(rsp, "index", templateData), http.StatusInternalServerError); werr != nil {
+	if werr := web.AsError(uiTmpl.ExecuteTemplate(rsp, templateName, templateData), http.StatusInternalServerError); werr != nil {
 		return werr.AsHTML()
 	}
 	return nil
