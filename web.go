@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"html"
 	"html/template"
+	"io/ioutil"
 	"mime"
 	"net/http"
 	"net/url"
@@ -174,6 +175,9 @@ type IndexTemplate struct {
 
 	HasAudio   bool
 	AudioFiles template.JS
+
+	HasMultitrack     bool
+	MultitrackMixJson template.JS
 }
 
 func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *web.Error {
@@ -262,21 +266,32 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 
 	files := make([]*IndexTemplateFile, 0, len(fis))
 	audioFiles := make([]*IndexTemplateAudioFileJSON, 0, len(fis))
+	multitrackFiles := make([]*IndexTemplateAudioFileJSON, 0, len(fis))
 
 	// Check if there are MP3s in this directory:
 	hasMP3s := false
+	hasMultitrack := false
+	mixJsonPath := ""
 	i := 0
 	for _, dfi := range fis {
 		name := dfi.Name()
 
 		// No hidden files:
-		if name[0] == '.' {
+		if len(name) > 0 && name[0] == '.' {
 			continue
 		}
 
+		// Follow symlink if applicable:
 		dfi = followSymlink(localPath, dfi)
 
 		dfiPath := path.Join(localPath, name)
+		// Folder has a mix.json file means we want a multitrack mixer:
+		if name == "mix.json" {
+			hasMultitrack = true
+			mixJsonPath = dfiPath
+			continue
+		}
+
 		href := translateForProxy(dfiPath)
 
 		ext := path.Ext(name)
@@ -315,15 +330,22 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 		}
 		files = append(files, file)
 
-		if !dfi.IsDir() && isMP3(dfi.Name()) {
-			hasMP3s = true
-			file.IsAudio = true
-			audioFiles = append(audioFiles, &IndexTemplateAudioFileJSON{
-				Href:  href,
-				Name:  onlyname,
-				Index: i,
-			})
-			i++
+		if !dfi.IsDir() {
+			if isMP3(dfi.Name()) {
+				hasMP3s = true
+				file.IsAudio = true
+				audioFiles = append(audioFiles, &IndexTemplateAudioFileJSON{
+					Href:  href,
+					Name:  onlyname,
+					Index: i,
+				})
+				i++
+			} else if isMultitrack(dfi.Name()) {
+				multitrackFiles = append(multitrackFiles, &IndexTemplateAudioFileJSON{
+					Href: href,
+					Name: onlyname,
+				})
+			}
 		}
 	}
 
@@ -337,15 +359,28 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 		return web.AsError(err, http.StatusInternalServerError)
 	}
 
+	// Load mix.json file:
+	multitrackMixJson := []byte(nil)
+	if hasMultitrack && mixJsonPath != "" {
+		multitrackMixJson, err = ioutil.ReadFile(mixJsonPath)
+		if err != nil {
+			return web.AsError(err, http.StatusInternalServerError)
+		}
+	}
+
 	templateData := &IndexTemplate{
 		JplayerUrl: jplayerUrl,
 		Path:       pathLink,
-		HasAudio:   hasMP3s,
 		SortName:   nameSort,
 		SortDate:   dateSort,
 		SortSize:   sizeSort,
 		Files:      files,
+
+		HasAudio:   hasMP3s,
 		AudioFiles: template.JS(audioFilesJSON),
+
+		HasMultitrack:     hasMultitrack,
+		MultitrackMixJson: template.JS(multitrackMixJson),
 
 		HasParent:  strings.HasPrefix(baseDir, jailRoot),
 		ParentHref: endSlash(translateForProxy(baseDir)),

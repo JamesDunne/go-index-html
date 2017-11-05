@@ -138,3 +138,12 @@ func isMP3(filename string) bool {
 
 	return false
 }
+
+func isMultitrack(filename string) bool {
+	ext := path.Ext(filename)
+	if ext == ".opus" {
+		return true
+	}
+
+	return false
+}
