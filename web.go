@@ -347,7 +347,8 @@ func generateIndexHtml(rsp http.ResponseWriter, req *http.Request, u *url.URL) *
 					Index: i,
 				})
 				i++
-			} else if isMultitrack(dfi.Name()) {
+			}
+			if isMultitrack(dfi.Name()) {
 				file.IsMultitrack = true
 				multitrackFiles = append(multitrackFiles, &IndexTemplateAudioFileJSON{
 					Href: href,
