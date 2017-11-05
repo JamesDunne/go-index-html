@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"mime"
 	"net"
 	"net/http"
 	"strings"
@@ -52,6 +53,11 @@ func main() {
 
 	listen_addr, err := base.ParseListenable(*fl_listen_uri)
 	base.PanicIf(err)
+
+	// Add mime type for opus if not registered:
+	if mime.TypeByExtension(".opus") == "" {
+		mime.AddExtensionType(".opus", "audio/ogg; codecs=opus")
+	}
 
 	// Watch the html templates for changes and reload them:
 	_, cleanup, err := web.WatchTemplates("ui", html_path, "*.html", nil, &uiTmpl)
