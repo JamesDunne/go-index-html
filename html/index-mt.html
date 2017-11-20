@@ -142,7 +142,7 @@ div.foot { font: 90% monospace; color: #787878; padding-top: 4px;}
     mcSource.channelInterpretation = "discrete";
 
     // TODO: would be nice to detect channel count from source.
-    let splitter = ac.createChannelSplitter(8);
+    let splitter = ac.createChannelSplitter(mix.channels || 8);
     try {
         // For older spec implementations:
         splitter.channelCountMode = "max";
