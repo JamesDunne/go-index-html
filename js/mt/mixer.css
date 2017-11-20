@@ -17,13 +17,6 @@
     touch-action: none;
 }
 
-@media (min-width: 361px) and (min-height: 721px) {
-    .mixer {
-        transform-origin: left top;
-        transform: scale(1.5);
-    }
-}
-
 .mixer audio {
     width: 360px;
     display: block;
