@@ -33,18 +33,18 @@ func main() {
 	flag.StringVar(&proxyRoot, "p", "/", "root of web requests to process")
 	flag.StringVar(&jailRoot, "r", ".", "local filesystem path to bind to web request root path")
 	flag.StringVar(&accelRedirect, "xa", "", "Root of X-Accel-Redirect paths to use)")
-	flag.StringVar(&jplayerUrl, "jp-url", "", `Web path to jPlayer files (e.g. "/js")`)
-	flag.StringVar(&jplayerPath, "jp-path", "", `Local filesystem path to jPlayer files`)
-	flag.StringVar(&mtUrl, "mt-url", "", `Web path to multitrack mixer files (e.g. "/js/mt")`)
-	flag.StringVar(&mtPath, "mt-path", "", `Local filesystem path to multitrack mixer files`)
+	flag.StringVar(&jplayerUrl, "jp-url", "/js", `Web path to jPlayer files (default "/js")`)
+	flag.StringVar(&jplayerPath, "jp-path", "./js", `Local filesystem path to jPlayer files`)
+	flag.StringVar(&mtUrl, "mt-url", "/js/mt", `Web path to multitrack mixer files (default "/js/mt")`)
+	flag.StringVar(&mtPath, "mt-path", "./js/mt", `Local filesystem path to multitrack mixer files`)
 
 	fl_listen_uri := flag.String("l", "tcp://0.0.0.0:8080", "listen URI (schemes available are tcp, unix)")
 	flag.Parse()
 
-	if jplayerUrl != "" {
+	if jplayerPath != "" {
 		useJPlayer = true
 	}
-	if mtUrl != "" {
+	if mtPath != "" {
 		useMT = true
 	}
 
