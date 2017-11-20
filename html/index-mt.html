@@ -110,20 +110,28 @@ div.foot { font: 90% monospace; color: #787878; padding-top: 4px;}
 <script type="text/javascript" src="{{$.MtUrl}}/track.js"></script>
 <script type="text/javascript" src="{{$.MtUrl}}/mixer-ui.js"></script>
 <script type="text/javascript">
-  function songPlayClickHandler(e) {
-    let a = e.target;
-    e.preventDefault();
-    let href = a.getAttribute("href");
-    mcAudio.src = href;
-    mcAudio.play();
+  let loop = true;
 
+  function setSelected(a) {
     // Update selected statuses:
     let siblings = document.querySelectorAll('a.play');
     for (let i = 0; i < siblings.length; i++) {
       siblings[i].classList.remove('selected');
     }
     a.classList.add('selected');
+  }
 
+  function playLink(a) {
+    setSelected(a);
+    let href = a.getAttribute("href");
+    mcAudio.src = href;
+    mcAudio.play();
+  }
+
+  function songPlayClickHandler(e) {
+    let a = e.target;
+    e.preventDefault();
+    playLink(a);
     return false;
   }
 
@@ -182,6 +190,20 @@ div.foot { font: 90% monospace; color: #787878; padding-top: 4px;}
     }
     merger.connect(track.inputNode);
   }
+
+  mcAudio.addEventListener('ended', function(e) {
+    let current = document.querySelector("a.play.selected");
+    let next = current.closest("tr").nextElementSibling;
+    if (next == null) {
+      if (!loop) return;
+
+      // Loop back to first song:
+      next = document.querySelector("a.play");
+    } else {
+      next = next.querySelector("a.play");
+    }
+    playLink(next);
+  });
 </script>
 </body>
 </html>
