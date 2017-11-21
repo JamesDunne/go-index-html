@@ -150,6 +150,8 @@
 
 .webmixer .track .pan input[type=range] {
     width: calc(var(--track-width) - 2px);
+    padding: 0;
+    margin: 0;
 }
 
 /* FADER */
