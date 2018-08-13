@@ -69,8 +69,12 @@ func downloadZip(rsp http.ResponseWriter, req *http.Request, u *url.URL, dir *os
 
 	// Start with a 200 status and set up the download:
 	h := rsp.Header()
-	h.Set("Content-Type", "application/zip")
+	h.Set("Pragma", "public")
+	h.Set("Expires", "0")
+	h.Set("Cache-Control", "must-revalidate, post-check=0, pre-check=0")
+	h.Set("Cache-Control", "public")
 	h.Set("Content-Description", "File Transfer")
+	h.Set("Content-Type", "application/octet-stream")
 	// NOTE(jsd): Need proper HTTP value encoding here!
 	h.Set("Content-Disposition", "attachment; filename=\""+fullName+".zip\"")
 	h.Set("Content-Transfer-Encoding", "binary")
